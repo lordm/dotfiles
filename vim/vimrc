@@ -1,0 +1,51 @@
+call pathogen#runtime_append_all_bundles()
+call pathogen#helptags()
+
+set nocompatible                " Choose no compatibility with legacy vi
+
+set t_Co=256
+colorscheme xoria256
+
+set encoding=utf-8
+set showcmd                     " Display incomplete commands
+set showmode                    " Display the mode you're in.
+set number                      " Show line numbers.
+
+syntax on                       " Enable syntax highlighting
+filetype on                     " Enable filetype detection
+filetype indent on              " Enable filetype-specific indenting
+filetype plugin on              " Enable filetype-specific plugins
+
+"" Whitespace
+set autoindent
+set smartindent
+set nowrap                      " Don't wrap lines
+set tabstop=2 shiftwidth=2      " A tab is two spaces (or set this to 4)
+set expandtab                   " Use spaces, not tabs (optional)
+set backspace=indent,eol,start  " Backspace through everything in insert mode
+
+"" Searching
+set hlsearch                    " Highlight matches
+set incsearch                   " Incremental searching
+set ignorecase                  " Searches are case insensitive...
+set smartcase                   " ... unless they contain at least one capital letter
+
+"" Mappings
+nmap <F8> :TagbarToggle<CR>         " mapping f8 to TagbarToggle
+nmap <F2> :NERDTreeToggle<CR>       " mapping f2 to NERDTreeToggle
+noremap <F5> :GundoToggle<CR>       " mapping f5 to Gundo
+noremap <F9> :Gcommit<CR>           " mapping f9 to Gcommit
+"" inoremap jj <Esc>                   "<Esc> to jj
+
+"" Plugins
+
+" Disable Pylint on Save
+let g:pymode_lint_write = 0         " python-mode
+
+" Enable python folding
+let g:pymode_folding = 0            " python-mode
+
+set laststatus=2                    " Always show the statusline
+
+" Enable fancy mode 
+let g:Powerline_symbols = 'fancy'   " Powerline
