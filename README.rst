@@ -8,3 +8,14 @@ Mostly inspired by:
 Installation
 ------------
 Just run install.sh script
+
+Plugins Used
+------------
+- Fugitive
+- Python-mode
+- Nerdtree
+- Tagbar
+- Vim-Powerline
+- Gundo
+- Ctrlp
+- Ack
