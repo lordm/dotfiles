@@ -5,10 +5,6 @@ Mostly inspired by:
 - https://github.com/myusuf3/dotfiles
 - https://github.com/tejr/dotfiles 
 
-Installation
-------------
-Just run install.sh script
-
 Plugins Used
 ------------
 - Fugitive
@@ -19,3 +15,13 @@ Plugins Used
 - Gundo
 - Ctrlp
 - Ack
+
+Installation
+------------
+Just run install.sh script
+
+- Vim configuration
+  ./configure --with-features=huge --enable-cscope --enable-rubyinterp --enable-python3interp=yes --enable-pythoninterp=yes --enable-gui=gnome2 --enable-tclinterp --enable-fontset --with-compiledby=lordm
+
+- required packages
+  sudo apt-get install libncurses5 libncurses5-dev libncursesw5 ncurses-bin ncurses-base ctags
