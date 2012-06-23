@@ -22,3 +22,6 @@
 [submodule "vim/bundle/vim-powerline"]
 	path = vim/bundle/vim-powerline
 	url = https://github.com/Lokaltog/vim-powerline
+[submodule "fonts/ubuntu-mono"]
+	path = fonts/ubuntu-mono
+	url = https://github.com/scotu/ubuntu-mono-powerline.git
