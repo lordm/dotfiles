@@ -25,3 +25,15 @@
 [submodule "fonts/ubuntu-mono"]
 	path = fonts/ubuntu-mono
 	url = https://github.com/scotu/ubuntu-mono-powerline.git
+[submodule "vim/bundle/vim-rails"]
+	path = vim/bundle/vim-rails
+	url = https://github.com/tpope/vim-rails.git
+[submodule "vim/bundle/vim-javascript"]
+	path = vim/bundle/vim-javascript
+	url = https://github.com/pangloss/vim-javascript.git
+[submodule "vim/bundle/jslint"]
+	path = vim/bundle/jslint
+	url = https://github.com/hallettj/jslint.vim.git
+[submodule "vim/bundle/vim-browser-reload-linux"]
+	path = vim/bundle/vim-browser-reload-linux
+	url = https://github.com/lordm/vim-browser-reload-linux.git
