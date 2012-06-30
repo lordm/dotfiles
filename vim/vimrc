@@ -10,6 +10,7 @@ set encoding=utf-8
 set showcmd                     " Display incomplete commands
 set showmode                    " Display the mode you're in.
 set number                      " Show line numbers.
+set hidden                      " hide buffers instead of closing on switching
 
 syntax on                       " Enable syntax highlighting
 filetype on                     " Enable filetype detection
@@ -49,3 +50,6 @@ set laststatus=2                    " Always show the statusline
 
 " Enable fancy mode 
 let g:Powerline_symbols = 'fancy'   " Powerline
+
+" Disable JSLint automatic checking
+autocmd FileType javascript :JSLintToggle
