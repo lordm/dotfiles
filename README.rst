@@ -23,8 +23,6 @@ Plugins Used
 
 Installation
 ------------
-Just run install.sh script
-
 - Vim configuration
   ::
 
@@ -33,4 +31,7 @@ Just run install.sh script
 - required packages
   ::
 
-  sudo apt-get install libncurses5 libncurses5-dev libncursesw5 ncurses-bin ncurses-base ctags
+  sudo apt-get install libncurses5 libncurses5-dev libncursesw5 ncurses-bin ncurses-base ctags ack-grep
+  sudo dpkg-divert --local --divert /usr/bin/ack --rename --add /usr/bin/ack-grep
+
+- install.sh
