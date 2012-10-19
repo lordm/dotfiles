@@ -4,7 +4,7 @@ call pathogen#helptags()
 set nocompatible                " Choose no compatibility with legacy vi
 
 set t_Co=256
-colorscheme xoria256
+colorscheme jellybeans
 
 set encoding=utf-8
 set showcmd                     " Display incomplete commands
