@@ -1,0 +1,7 @@
+set go=ac
+set go-=T
+set go-=m
+set go-=r
+set go-=l
+set cursorline
+set anti
