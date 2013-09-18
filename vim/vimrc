@@ -24,6 +24,7 @@ set nowrap                      " Don't wrap lines
 set tabstop=2 shiftwidth=2      " A tab is two spaces (or set this to 4)
 set expandtab                   " Use spaces, not tabs (optional)
 set backspace=indent,eol,start  " Backspace through everything in insert mode
+set linespace=2
 
 "" Searching
 set hlsearch                    " Highlight matches
@@ -36,6 +37,8 @@ nmap <F8> :TagbarToggle<CR>         " mapping f8 to TagbarToggle
 nmap <F2> :NERDTreeToggle<CR>       " mapping f2 to NERDTreeToggle
 noremap <F5> :GundoToggle<CR>       " mapping f5 to Gundo
 noremap <F9> :Gcommit<CR>           " mapping f9 to Gcommit
+nnoremap <F3> :NumbersToggle<CR>
+nnoremap <F4> :NumbersOnOff<CR>
 "" inoremap jj <Esc>                   "<Esc> to jj
 
 "" Plugins
@@ -53,3 +56,9 @@ let g:Powerline_symbols = 'fancy'   " Powerline
 
 " Disable JSLint automatic checking
 autocmd FileType javascript :JSLintToggle
+
+" ruby
+autocmd FileType ruby,eruby set omnifunc=rubycomplete#Complete
+autocmd FileType ruby,eruby let g:rubycomplete_buffer_loading = 1
+autocmd FileType ruby,eruby let g:rubycomplete_rails = 1
+autocmd FileType ruby,eruby let g:rubycomplete_classes_in_global = 1
