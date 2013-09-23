@@ -20,6 +20,23 @@ Plugins Used
 - Vim-Javascript
 - JSLint
 - Vim-browser-reload-linux
+- Syntastic
+- Snipmate
+- YouCompleteMe
+- Android.vim
+- Star-search
+- TPlugin
+- Vim-Pasta
+- Vim-Startify
+
+Adding a New Plugin
+-------------------
+  ::
+
+  cd .vim
+  git submodule init
+  git submodule add git://foo/bar bundle/foobar
+
 
 Installation
 ------------

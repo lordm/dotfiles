@@ -39,3 +39,5 @@
 	tool = vimdiff
 [merge]
 	tool = vimdiff
+[url "https://"]
+	insteadOf = git://
