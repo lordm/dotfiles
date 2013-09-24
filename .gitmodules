@@ -40,9 +40,6 @@
 [submodule "vim/bundle/numbers"]
   path = vim/bundle/numbers
   url = https://github.com/myusuf3/numbers.vim.git
-[submodule "vim/bundle/snipmate"]
-	path = vim/bundle/snipmate
-	url = git://github.com/msanders/snipmate.vim.git
 [submodule "vim/bundle/tplugin"]
 	path = vim/bundle/tplugin
 	url = git://github.com/tomtom/tplugin_vim.git
@@ -61,3 +58,12 @@
 [submodule "vim/bundle/syntastic"]
   path = vim/bundle/syntastic
   url = https://github.com/scrooloose/syntastic.git  
+[submodule "vim/bundle/mw-utils"]
+	path = vim/bundle/mw-utils
+	url = https://github.com/MarcWeber/vim-addon-mw-utils.git
+[submodule "vim/bundle/tlib"]
+	path = vim/bundle/tlib
+	url = https://github.com/tomtom/tlib_vim.git
+[submodule "vim/bundle/utilsnips"]
+	path = vim/bundle/utilsnips
+	url = https://github.com/SirVer/ultisnips

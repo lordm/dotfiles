@@ -40,6 +40,7 @@ noremap <F9> :Gcommit<CR>           " mapping f9 to Gcommit
 nnoremap <F3> :NumbersToggle<CR>
 nnoremap <F4> :NumbersOnOff<CR>
 "" inoremap jj <Esc>                   "<Esc> to jj
+let g:UltiSnipsExpandTrigger="<c-j>"
 
 "" Plugins
 
@@ -51,8 +52,10 @@ let g:pymode_folding = 0            " python-mode
 
 set laststatus=2                    " Always show the statusline
 
-" Enable fancy mode 
 let g:Powerline_symbols = 'fancy'   " Powerline
+
+" Disable YCM confirmation
+let g:ycm_confirm_extra_conf = 0
 
 " Disable JSLint automatic checking
 autocmd FileType javascript :JSLintToggle
