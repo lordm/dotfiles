@@ -67,3 +67,6 @@
 [submodule "vim/bundle/utilsnips"]
 	path = vim/bundle/utilsnips
 	url = https://github.com/SirVer/ultisnips
+[submodule "vim/bundle/indent-guides"]
+	path = vim/bundle/indent-guides
+	url = git://github.com/nathanaelkane/vim-indent-guides.git

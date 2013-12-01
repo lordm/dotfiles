@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 echo "Initializing submodules..."
-git submodule --quiet update --init
+git submodule --quiet update --init --force
 
 echo "Deleting old files..."
 rm ~/.vimrc
@@ -24,6 +24,6 @@ ln -fs "$PWD/gitconfig" ~/.gitconfig
 ln -fs "$PWD/fonts/ubuntu-mono" ~/.fonts/ubuntu-mono
 
 echo "Updating submodules..."
-git submodule foreach git pull origin master
+git submodule foreach git pull --force origin master
 
 echo "All Done."
