@@ -68,3 +68,9 @@ autocmd FileType ruby,eruby let g:rubycomplete_classes_in_global = 1
 
 " Matlab
 map <leader>r :w<CR>:!/usr/local/bin/matlab -nodesktop -nosplash -r "try, run %:p, pause, catch, end, quit" <CR> <CR>"
+
+" Syntastic headers inclusion
+let b:syntastic_c_include_dirs = [ '../include', 'include' ]
+let b:syntastic_cpp_include_dirs = [ '../include', 'include' ]
+let g:syntastic_cpp_auto_refresh_includes = 1
+let g:syntastic_cpp_compiler_options = ' -Wall -Wno-write-strings -g `pkg-config --cflags opencv` `pkg-config --cflags sigc++-2.0`'
