@@ -49,6 +49,7 @@ let g:pymode_lint_write = 0         " python-mode
 
 " Enable python folding
 let g:pymode_folding = 0            " python-mode
+let g:pymode_indent = 0            " python-mode
 
 set laststatus=2                    " Always show the statusline
 
@@ -74,3 +75,13 @@ let b:syntastic_c_include_dirs = [ '../include', 'include' ]
 let b:syntastic_cpp_include_dirs = [ '../include', 'include' ]
 let g:syntastic_cpp_auto_refresh_includes = 1
 let g:syntastic_cpp_compiler_options = ' -Wall -Wno-write-strings -g `pkg-config --cflags opencv` `pkg-config --cflags sigc++-2.0`'
+
+" Read in cookiefiles
+command -bar Cookies call ReadCookies()
+function ReadCookies()
+    call system("cp Cookies.binarycookies /tmp/")
+    %!python2 $HOME/BinaryCookieReader.py /tmp/Cookies.binarycookies
+endfunction
+
+" Indent Guide
+let g:indent_guides_guide_size = 1
