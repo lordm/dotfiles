@@ -71,5 +71,5 @@
 	path = vim/bundle/indent-guides
 	url = git://github.com/nathanaelkane/vim-indent-guides.git
 [submodule "vim/bundle/vim-surround"]
-  path = vim/bundle/vim-surround
-  url = git://github.com/tpope/vim-surround.git
+	path = vim/bundle/vim-surround
+	url = git://github.com/tpope/vim-surround.git
