@@ -32,6 +32,10 @@ set incsearch                   " Incremental searching
 set ignorecase                  " Searches are case insensitive...
 set smartcase                   " ... unless they contain at least one capital letter
 
+""
+set visualbell                  " Don't beep
+set noerrorbells                " Don't beep
+
 "" Mappings
 nmap <F8> :TagbarToggle<CR>         " mapping f8 to TagbarToggle
 nmap <F2> :NERDTreeToggle<CR>       " mapping f2 to NERDTreeToggle
@@ -74,7 +78,7 @@ map <leader>r :w<CR>:!/usr/local/bin/matlab -nodesktop -nosplash -r "try, run %:
 let b:syntastic_c_include_dirs = [ '../include', 'include' ]
 let b:syntastic_cpp_include_dirs = [ '../include', 'include' ]
 let g:syntastic_cpp_auto_refresh_includes = 1
-let g:syntastic_cpp_compiler_options = ' -Wall -Wno-write-strings -g `pkg-config --cflags opencv` `pkg-config --cflags sigc++-2.0`'
+let g:syntastic_cpp_compiler_options = ' -Wall -Wno-write-strings -g `pkg-config --cflags opencv` `pkg-config --cflags sigc++-2.0` `visp-config --cflags`'
 
 " Read in cookiefiles
 command -bar Cookies call ReadCookies()
