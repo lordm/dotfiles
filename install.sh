@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 echo "Initializing submodules..."
-git submodule --quiet update --init --force --recursive
+git submodule update --init --force --recursive
 
 echo "Deleting old files..."
 rm ~/.vimrc
