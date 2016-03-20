@@ -85,3 +85,6 @@
 [submodule "vim/bundle/YouCompleteMe"]
 	path = vim/bundle/YouCompleteMe
 	url = https://github.com/Valloric/YouCompleteMe.git
+[submodule "vim/bundle/html5"]
+	path = vim/bundle/html5
+	url = https://github.com/othree/html5.vim.git
