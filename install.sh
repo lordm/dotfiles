@@ -3,15 +3,17 @@
 echo "Initializing submodules..."
 git submodule update --init --force --recursive
 
-echo "Deleting old files..."
-rm ~/.vimrc
-rm -rf ~/.vim
-rm ~/.gvimrc
-rm ~/.gitconfig
+echo "Backing up the old files..."
+mv ~/.vimrc ~/vimrc_old
+mv ~/.vim ~/.vim_old
+mv ~/.gvimrc ~/.gvimrc
+mv ~/.gitconfig ~/.gitconfig
+mv ~/.fonts/ubuntu-mono ~/.fonts/ubuntu-mono-old
+
 #rm ~/.gitignore
 #rm ~/.zshrc
 #rm ~/.tmux.conf
-rm -rf ~/.fonts/ubuntu-mono
+
 
 echo "Symlinking files..."
 ln -fs "$PWD/vim/vimrc" ~/.vimrc
