@@ -1,0 +1,489 @@
+" ============================================================================
+" File:        wakatime.vim
+" Description: Automatic time tracking for Vim.
+" Maintainer:  WakaTime <support@wakatime.com>
+" License:     BSD, see LICENSE.txt for more details.
+" Website:     https://wakatime.com/
+" ============================================================================
+
+let s:VERSION = '5.0.1'
+
+
+" Init {{{
+
+    " Check Vim version
+    if v:version < 700
+        echoerr "This plugin requires vim >= 7."
+        finish
+    endif
+
+    " Use constants for truthy check to improve readability
+    let s:true = 1
+    let s:false = 0
+
+    " Only load plugin once
+    if exists("g:loaded_wakatime")
+        finish
+    endif
+    let g:loaded_wakatime = s:true
+
+    " Backup & Override cpoptions
+    let s:old_cpo = &cpo
+    set cpo&vim
+
+    " Backup wildignore before clearing it to prevent conflicts with expand()
+    let s:wildignore = &wildignore
+    if s:wildignore != ""
+        set wildignore=""
+    endif
+
+    " Script Globals
+    let s:home = expand("$WAKATIME_HOME")
+    if s:home == '$WAKATIME_HOME'
+        let s:home = expand("$HOME")
+    endif
+    let s:cli_location = expand("<sfile>:p:h") . '/packages/wakatime/cli.py'
+    let s:config_file = s:home . '/.wakatime.cfg'
+    let s:default_configs = ['[settings]', 'debug = false', 'hidefilenames = false', 'ignore =', '    COMMIT_EDITMSG$', '    PULLREQ_EDITMSG$', '    MERGE_MSG$', '    TAG_EDITMSG$']
+    let s:data_file = s:home . '/.wakatime.data'
+    let s:has_reltime = has('reltime') && localtime() - 1 < split(split(reltimestr(reltime()))[0], '\.')[0]
+    let s:config_file_already_setup = s:false
+    let s:debug_mode_already_setup = s:false
+    let s:is_debug_mode_on = s:false
+    let s:local_cache_expire = 10  " seconds between reading s:data_file
+    let s:last_heartbeat = {'last_activity_at': 0, 'last_heartbeat_at': 0, 'file': ''}
+    let s:heartbeats_buffer = []
+    let s:last_sent = localtime()
+
+    " For backwards compatibility, rename wakatime.conf to wakatime.cfg
+    if !filereadable(s:config_file)
+        if filereadable(expand("$HOME/.wakatime"))
+            exec "silent !mv" expand("$HOME/.wakatime") expand("$HOME/.wakatime.conf")
+        endif
+        if filereadable(expand("$HOME/.wakatime.conf"))
+            if !filereadable(s:config_file)
+                let contents = ['[settings]'] + readfile(expand("$HOME/.wakatime.conf"), '')
+                call writefile(contents, s:config_file)
+                call delete(expand("$HOME/.wakatime.conf"))
+            endif
+        endif
+    endif
+
+    " Set default python binary location
+    if !exists("g:wakatime_PythonBinary")
+        let g:wakatime_PythonBinary = 'python'
+    endif
+
+    " Set default heartbeat frequency in minutes
+    if !exists("g:wakatime_HeartbeatFrequency")
+        let g:wakatime_HeartbeatFrequency = 2
+    endif
+
+    " Set default screen redraw to 0 (s:false)
+    if !exists("g:wakatime_ScreenRedraw")
+        let g:wakatime_ScreenRedraw = s:false
+    endif
+
+" }}}
+
+
+" Function Definitions {{{
+
+    function! s:StripWhitespace(str)
+        return substitute(a:str, '^\s*\(.\{-}\)\s*$', '\1', '')
+    endfunction
+
+    function! s:SetupConfigFile()
+        if !s:config_file_already_setup
+
+            " Create config file if does not exist
+            if !filereadable(s:config_file)
+                call writefile(s:default_configs, s:config_file)
+            endif
+
+            " Make sure config file has api_key
+            let found_api_key = s:false
+            if s:GetIniSetting('settings', 'api_key') != '' || s:GetIniSetting('settings', 'apikey') != ''
+                let found_api_key = s:true
+            endif
+            if !found_api_key
+                call s:PromptForApiKey()
+                echo "[WakaTime] Setup complete! Visit https://wakatime.com to view your coding activity."
+            endif
+
+            let s:config_file_already_setup = s:true
+        endif
+    endfunction
+
+    function! s:SetupDebugMode()
+        if !s:debug_mode_already_setup
+            if s:GetIniSetting('settings', 'debug') == 'true'
+                let s:is_debug_mode_on = s:true
+            else
+                let s:is_debug_mode_on = s:false
+            endif
+            let s:debug_mode_already_setup = s:true
+        endif
+    endfunction
+
+    function! s:GetIniSetting(section, key)
+        if !filereadable(s:config_file)
+            return ''
+        endif
+        let lines = readfile(s:config_file)
+        let currentSection = ''
+        for line in lines
+            let line = s:StripWhitespace(line)
+            if matchstr(line, '^\[') != '' && matchstr(line, '\]$') != ''
+                let currentSection = substitute(line, '^\[\(.\{-}\)\]$', '\1', '')
+            else
+                if currentSection == a:section
+                    let group = split(line, '=')
+                    if len(group) == 2 && s:StripWhitespace(group[0]) == a:key
+                        return s:StripWhitespace(group[1])
+                    endif
+                endif
+            endif
+        endfor
+        return ''
+    endfunction
+
+    function! s:SetIniSetting(section, key, val)
+        let output = []
+        let sectionFound = s:false
+        let keyFound = s:false
+        if filereadable(s:config_file)
+            let lines = readfile(s:config_file)
+            let currentSection = ''
+            for line in lines
+                let entry = s:StripWhitespace(line)
+                if matchstr(entry, '^\[') != '' && matchstr(entry, '\]$') != ''
+                    if currentSection == a:section && !keyFound
+                        let output = output + [join([a:key, a:val], '=')]
+                        let keyFound = s:true
+                    endif
+                    let currentSection = substitute(entry, '^\[\(.\{-}\)\]$', '\1', '')
+                    let output = output + [line]
+                    if currentSection == a:section
+                        let sectionFound = s:true
+                    endif
+                else
+                    if currentSection == a:section
+                        let group = split(entry, '=')
+                        if len(group) == 2 && s:StripWhitespace(group[0]) == a:key
+                            let output = output + [join([a:key, a:val], '=')]
+                            let keyFound = s:true
+                        else
+                            let output = output + [line]
+                        endif
+                    else
+                        let output = output + [line]
+                    endif
+                endif
+            endfor
+        endif
+        if !sectionFound
+            let output = output + [printf('[%s]', a:section), join([a:key, a:val], '=')]
+        else
+            if !keyFound
+                let output = output + [join([a:key, a:val], '=')]
+            endif
+        endif
+        call writefile(output, s:config_file)
+    endfunction
+
+    function! s:GetCurrentFile()
+        return expand("%:p")
+    endfunction
+
+    function! s:EscapeArg(arg)
+        return substitute(shellescape(a:arg), '!', '\\!', '')
+    endfunction
+
+    function! s:JsonEscape(str)
+        return substitute(a:str, '"', '\\"', 'g')
+    endfunction
+
+    function! s:JoinArgs(args)
+        let safeArgs = []
+        for arg in a:args
+            let safeArgs = safeArgs + [s:EscapeArg(arg)]
+        endfor
+        return join(safeArgs, ' ')
+    endfunction
+
+    function! s:IsWindows()
+        if has('win32') || has('win64')
+            return s:true
+        endif
+        return s:false
+    endfunction
+
+    function! s:CurrentTimeStr()
+        if s:has_reltime
+            return split(reltimestr(reltime()))[0]
+        endif
+        return printf('%d', localtime())
+    endfunction
+
+    function! s:AppendHeartbeat(file, now, is_write, last)
+        let file = a:file
+        if file == ''
+            let file = a:last.file
+        endif
+        if file != ''
+            let heartbeat = {}
+            let heartbeat.entity = file
+            let heartbeat.time = s:CurrentTimeStr()
+            let heartbeat.is_write = a:is_write
+            if !empty(&syntax)
+                let heartbeat.language = &syntax
+            else
+                if !empty(&filetype)
+                    let heartbeat.language = &filetype
+                endif
+            endif
+            let s:heartbeats_buffer = s:heartbeats_buffer + [heartbeat]
+            call s:SetLastHeartbeat(a:now, a:now, file)
+            if s:IsWindows() && !s:is_debug_mode_on
+                " Windows doesn't play nice with system(), so can't pass input
+                " as STDIN and we are forced to send heartbeats individually.
+                call s:SendHeartbeats()
+            endif
+        endif
+    endfunction
+
+    function! s:SendHeartbeats()
+        if len(s:heartbeats_buffer) == 0
+            let s:last_sent = localtime()
+            return
+        endif
+
+        let heartbeat = s:heartbeats_buffer[0]
+        let s:heartbeats_buffer = s:heartbeats_buffer[1:-1]
+        if len(s:heartbeats_buffer) > 0
+            let extra_heartbeats = s:GetHeartbeatsJson()
+        else
+            let extra_heartbeats = ''
+        endif
+
+        let python_bin = g:wakatime_PythonBinary
+        if s:IsWindows()
+            if python_bin == 'python'
+                let python_bin = 'pythonw'
+            endif
+        endif
+        let cmd = [python_bin, '-W', 'ignore', s:cli_location]
+        let cmd = cmd + ['--entity', heartbeat.entity]
+        let cmd = cmd + ['--time', heartbeat.time]
+        let cmd = cmd + ['--plugin', printf('vim/%d vim-wakatime/%s', v:version, s:VERSION)]
+        if heartbeat.is_write
+            let cmd = cmd + ['--write']
+        endif
+        if has_key(heartbeat, 'language')
+            let cmd = cmd + ['--language', heartbeat.language]
+        endif
+        if extra_heartbeats != ''
+            let cmd = cmd + ['--extra-heartbeats']
+        endif
+        let stdout = ''
+        if s:IsWindows()
+            if s:is_debug_mode_on
+                if extra_heartbeats != ''
+                    let stdout = system('(' . s:JoinArgs(cmd) . ')', extra_heartbeats)
+                else
+                    let stdout = system('(' . s:JoinArgs(cmd) . ')')
+                endif
+            else
+                exec 'silent !start /min cmd /c "' . s:JoinArgs(cmd) . '"'
+            endif
+        else
+            if s:is_debug_mode_on
+                if extra_heartbeats != ''
+                    let stdout = system(s:JoinArgs(cmd), extra_heartbeats)
+                else
+                    let stdout = system(s:JoinArgs(cmd))
+                endif
+            else
+                if extra_heartbeats != ''
+                    let stdout = system(s:JoinArgs(cmd) . ' &', extra_heartbeats)
+                else
+                    let stdout = system(s:JoinArgs(cmd) . ' &')
+                endif
+            endif
+        endif
+        let s:last_sent = localtime()
+        if g:wakatime_ScreenRedraw
+            redraw! " need to repaint in case a key was pressed while sending
+        endif
+        if s:is_debug_mode_on && stdout != ''
+            echo '[WakaTime] Heartbeat Command: ' . s:JoinArgs(cmd) . "\n[WakaTime] Error: " . stdout
+        endif
+    endfunction
+
+    function! s:GetHeartbeatsJson()
+        let arr = []
+        let loop_count = 1
+        for heartbeat in s:heartbeats_buffer
+            let heartbeat_str = '{"entity": "' . s:JsonEscape(heartbeat.entity) . '", '
+            let heartbeat_str = heartbeat_str . '"timestamp": ' . s:OrderTime(heartbeat.time, loop_count) . ', '
+            let heartbeat_str = heartbeat_str . '"is_write": '
+            if heartbeat.is_write
+                let heartbeat_str = heartbeat_str . 'true'
+            else
+                let heartbeat_str = heartbeat_str . 'false'
+            endif
+            if has_key(heartbeat, 'language')
+                let heartbeat_str = heartbeat_str . ', "language": "' . s:JsonEscape(heartbeat.language) . '"'
+            endif
+            let heartbeat_str = heartbeat_str . '}'
+            let arr = arr + [heartbeat_str]
+            let loop_count = loop_count + 1
+        endfor
+        let s:heartbeats_buffer = []
+        return '[' . join(arr, ',') . ']'
+    endfunction
+
+    function! s:OrderTime(time_str, loop_count)
+        " Add a milisecond to a:time.
+        " Time prevision doesn't matter, but order of heartbeats does.
+        if !a:time_str =~ "\."
+            let millisecond = printf('%d', a:loop_count)
+            while strlen(millisecond) < 6
+                let millisecond = '0' . millisecond
+            endwhile
+            return a:time_str . '.' . millisecond
+        endif
+        return a:time_str
+    endfunction
+
+    function! s:GetLastHeartbeat()
+        if !s:last_heartbeat.last_activity_at || localtime() - s:last_heartbeat.last_activity_at > s:local_cache_expire
+            if !filereadable(s:data_file)
+                return {'last_activity_at': 0, 'last_heartbeat_at': 0, 'file': ''}
+            endif
+            let last = readfile(s:data_file, '', 3)
+            if len(last) == 3
+                let s:last_heartbeat.last_heartbeat_at = last[1]
+                let s:last_heartbeat.file = last[2]
+            endif
+        endif
+        return s:last_heartbeat
+    endfunction
+
+    function! s:SetLastHeartbeatInMemory(last_activity_at, last_heartbeat_at, file)
+        let s:last_heartbeat = {'last_activity_at': a:last_activity_at, 'last_heartbeat_at': a:last_heartbeat_at, 'file': a:file}
+    endfunction
+
+    function! s:SetLastHeartbeat(last_activity_at, last_heartbeat_at, file)
+        call s:SetLastHeartbeatInMemory(a:last_activity_at, a:last_heartbeat_at, a:file)
+        call writefile([substitute(printf('%d', a:last_activity_at), ',', '.', ''), substitute(printf('%d', a:last_heartbeat_at), ',', '.', ''), a:file], s:data_file)
+    endfunction
+
+    function! s:EnoughTimePassed(now, last)
+        let prev = a:last.last_heartbeat_at
+        if a:now - prev > g:wakatime_HeartbeatFrequency * 60
+            return s:true
+        endif
+        return s:false
+    endfunction
+
+    function! s:PromptForApiKey()
+        let api_key = s:false
+        let api_key = s:GetIniSetting('settings', 'api_key')
+        if api_key == ''
+            let api_key = s:GetIniSetting('settings', 'apikey')
+        endif
+
+        let api_key = input("[WakaTime] Enter your wakatime.com api key: ", api_key)
+        call s:SetIniSetting('settings', 'api_key', api_key)
+    endfunction
+
+    function! s:EnableDebugMode()
+        call s:SetIniSetting('settings', 'debug', 'true')
+        let s:is_debug_mode_on = s:true
+    endfunction
+
+    function! s:DisableDebugMode()
+        call s:SetIniSetting('settings', 'debug', 'false')
+        let s:is_debug_mode_on = s:false
+    endfunction
+
+    function! s:EnableScreenRedraw()
+        let g:wakatime_ScreenRedraw = s:true
+    endfunction
+
+    function! s:DisableScreenRedraw()
+        let g:wakatime_ScreenRedraw = s:false
+    endfunction
+
+    function! s:InitAndHandleActivity(is_write)
+        call s:SetupDebugMode()
+        call s:SetupConfigFile()
+        call s:HandleActivity(a:is_write)
+    endfunction
+
+    function! s:HandleActivity(is_write)
+        let file = s:GetCurrentFile()
+        if !empty(file) && file !~ "-MiniBufExplorer-" && file !~ "--NO NAME--" && file !~ "^term:"
+            let last = s:GetLastHeartbeat()
+            let now = localtime()
+
+            " Create a heartbeat when saving a file, when the current file
+            " changes, and when still editing the same file but enough time
+            " has passed since the last heartbeat.
+            if a:is_write || s:EnoughTimePassed(now, last) || file != last.file
+                call s:AppendHeartbeat(file, now, a:is_write, last)
+            else
+                if now - s:last_heartbeat.last_activity_at > s:local_cache_expire
+                    call s:SetLastHeartbeatInMemory(now, last.last_heartbeat_at, last.file)
+                endif
+            endif
+
+            " Windows non-debug mode disables buffering heartbeats, so
+            " no need to re-send.
+            if !s:IsWindows() || s:is_debug_mode_on
+
+                " Only send buffered heartbeats every 10 seconds
+                if now - s:last_sent > 10
+                    call s:SendHeartbeats()
+                endif
+            endif
+        endif
+    endfunction
+
+" }}}
+
+
+" Autocommand Events {{{
+
+    augroup Wakatime
+        autocmd BufEnter,VimEnter * call s:InitAndHandleActivity(s:false)
+        autocmd CursorMoved,CursorMovedI * call s:HandleActivity(s:false)
+        autocmd BufWritePost * call s:HandleActivity(s:true)
+        if exists('##QuitPre')
+            autocmd QuitPre * call s:SendHeartbeats()
+        endif
+    augroup END
+
+" }}}
+
+
+" Plugin Commands {{{
+
+    :command -nargs=0 WakaTimeApiKey call s:PromptForApiKey()
+    :command -nargs=0 WakaTimeDebugEnable call s:EnableDebugMode()
+    :command -nargs=0 WakaTimeDebugDisable call s:DisableDebugMode()
+    :command -nargs=0 WakaTimeScreenRedrawDisable call s:DisableScreenRedraw()
+    :command -nargs=0 WakaTimeScreenRedrawEnable call s:EnableScreenRedraw()
+
+" }}}
+
+
+" Restore wildignore option
+if s:wildignore != ""
+    let &wildignore=s:wildignore
+endif
+
+" Restore cpoptions
+let &cpo = s:old_cpo

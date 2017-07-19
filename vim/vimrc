@@ -84,7 +84,7 @@ map <leader>r :w<CR>:!/usr/local/bin/matlab -nodesktop -nosplash -r "try, run %:
 let b:syntastic_c_include_dirs = [ '../include', 'include' ]
 let b:syntastic_cpp_include_dirs = [ '../include', 'include' ]
 let g:syntastic_cpp_auto_refresh_includes = 1
-let g:syntastic_cpp_compiler_options = ' -Wall -Wno-write-strings -g `pkg-config --cflags opencv` `pkg-config --cflags sigc++-2.0` `visp-config --cflags`'
+let g:syntastic_cpp_compiler_options = ' -Wall -Wno-write-strings -std=c++11 -g `pkg-config --cflags opencv` `pkg-config --cflags sigc++-2.0` `visp-config --cflags`'
 
 " Read in cookiefiles
 command -bar Cookies call ReadCookies()
