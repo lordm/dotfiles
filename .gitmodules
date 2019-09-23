@@ -91,3 +91,21 @@
 [submodule "vim/bundle/vim-wakatime"]
 	path = vim/bundle/vim-wakatime
 	url = git://github.com/wakatime/vim-wakatime.git
+[submodule "vim/bundle/typescript-vim"]
+	path = vim/bundle/typescript-vim
+	url = https://github.com/leafgarland/typescript-vim.git
+[submodule "vim/bundle/vim-ros"]
+	path = vim/bundle/vim-ros
+	url = https://github.com/taketwo/vim-ros.git
+[submodule "vim/vim/bundle/vim-javascript"]
+	path = vim/vim/bundle/vim-javascript
+	url = https://github.com/pangloss/vim-javascript.git
+[submodule "vim/vim/bundle/vim-jsx"]
+	path = vim/vim/bundle/vim-jsx
+	url = https://github.com/mxw/vim-jsx.git
+[submodule "vim/vim/bundle/ale"]
+	path = vim/vim/bundle/ale
+	url = https://github.com/w0rp/ale.git
+[submodule "vim/bundle/vim-prettier"]
+	path = vim/bundle/vim-prettier
+	url = https://github.com/prettier/vim-prettier
