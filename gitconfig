@@ -1,6 +1,3 @@
-[user]
-	name = Marwan Osman
-	email = lordm2005@gmail.com
 [color]
   diff = auto
   status = auto
@@ -34,10 +31,10 @@
   df = diff
   br = branch
   lg = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=relative
-  lgm = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=relative --no-merges origin/master
+  lgm = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=local --no-merges origin/master
 [diff]
 	tool = vimdiff
 [merge]
 	tool = vimdiff
-[url "https://"]
-	insteadOf = git://
+[push]
+	default = simple

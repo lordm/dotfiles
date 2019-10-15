@@ -1,40 +1,52 @@
 # Marwan Osman's Dot Files
 Configurations and dotfiles for my development machine.
-Mostly inspired by:
-- https://github.com/myusuf3/dotfiles
-- https://github.com/tejr/dotfiles 
 
-## Plugins Used
+## Vim Plugins Used (Managed by vim-plug)
+- Ack
+- Ctrlp
 - Fugitive
 - Python-mode
-- Nerdtree
 - Tagbar
+- Gundo (disabled till it upgrades to py3)
+- Nerdtree
 - Vim-Powerline
-- Gundo
-- Ctrlp
-- Ack
 - Vim-Rails
 - Vim-Javascript
-- JSLint
 - Vim-browser-reload-linux
-- Syntastic
-- Snipmate
-- YouCompleteMe
-- Star-search
-- TPlugin
+- Numbers.vim
 - Vim-Pasta
+- Star-search
 - Vim-Startify
+- YouCompleteMe
+- YCM-Generator
+- #Syntastic
+- Ale
+- Ultisnips
+- vim-indent-guides
+- vim-surround
+- vim-snippets
+- vim-better-whitespace
+- Nercommenter
+- html5.vim
+- vim.jsx
+- vim-prettier
+- vim-ros (disabled till it upgrades to py3)
 
 ## Adding a New Plugin
-```bash
-  cd .vim
-  git submodule init
-  git submodule add git://foo/bar bundle/foobar
+Add your new plugin to the vimrc file using vim-plug, e.g.:
+```
+  Plug 'scrooloose/nerdtree'
 ```
 
 ## Installation
+- required packages
+```bash
+  sudo apt-get install libncurses5 libncurses5-dev libncursesw5 ncurses-bin ncurses-base ctags ack-grep clang
+  sudo dpkg-divert --local --divert /usr/bin/ack --rename --add /usr/bin/ack-grep
+```
+
 - Compile vim from source using YCM installation guide [https://github.com/ycm-core/YouCompleteMe/wiki/Building-Vim-from-source](YCM VIM Installation)
-- I prefer those vim configuration flags
+- Those are my prefered vim configuration flags
 ```bash
 ./configure --with-features=huge \
             --enable-multibyte \
@@ -52,13 +64,9 @@ Mostly inspired by:
 	   --prefix=/usr/local
 ```
 
-- required packages
-```bash
-  sudo apt-get install libncurses5 libncurses5-dev libncursesw5 ncurses-bin ncurses-base ctags ack-grep
-  sudo dpkg-divert --local --divert /usr/bin/ack --rename --add /usr/bin/ack-grep
-```
-
-- Run install.sh
+- Run install.sh (Caution: Revise before running)
 ```bash
 ./install.sh
 ```
+
+- Open vim and run `:PlugInstall`
