@@ -40,38 +40,20 @@ ZSH_THEME="robbyrussell"
 # Which plugins would you like to load? (plugins can be found in ~/.oh-my-zsh/plugins/*)
 # Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
-plugins=(git catimg rvm ruby python pip node ng npm)
+plugins=(git catimg rvm ruby python pip node ng npm command-time)
 
 source $ZSH/oh-my-zsh.sh
-
-# Customize to your needs...
-export PATH=$PATH:bin:/home/lordm/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/home/lordm/google_appengine:/home/lordm/Setups/phantomjs/bin:/usr/lib/jvm/java-6-openjdk/jre/bin:/home/lordm/setups/ViSP-2.10.0/bin;
-
-export ANDROID_HOME=/home/lordm/Android/Sdk;
-export PATH=$PATH:ANRDOID_HOME:/home/lordm/Android/Sdk/tools:/home/lordm/Android/Sdk/platform-tools:/home/lordm/Android/Sdk/build-tools
 
 export WORKON_HOME=~/.virtualenvs
 source /usr/local/bin/virtualenvwrapper.sh
 
 export EDITOR="vim"
 
-export LUA_PATH='/home/lordm/.luarocks/share/lua/5.1/?.lua;/home/lordm/.luarocks/share/lua/5.1/?/init.lua;/home/lordm/torch/install/share/lua/5.1/?.lua;/home/lordm/torch/install/share/lua/5.1/?/init.lua;./?.lua;/home/lordm/torch/install/share/luajit-2.1.0-alpha/?.lua;/usr/local/share/lua/5.1/?.lua;/usr/local/share/lua/5.1/?/init.lua'
-export LUA_CPATH='/home/lordm/.luarocks/lib/lua/5.1/?.so;/home/lordm/torch/install/lib/lua/5.1/?.so;./?.so;/usr/local/lib/lua/5.1/?.so;/usr/local/lib/lua/5.1/loadall.so'
-export PATH=/home/lordm/torch/install/bin:$PATH  # Added automatically by torch-dist
-export LD_LIBRARY_PATH=/home/lordm/torch/install/lib:$LD_LIBRARY_PATH  # Added automatically by torch-dist
-#export DYLD_LIBRARY_PATH=/home/lordm/torch/install/lib:$DYLD_LIBRARY_PATH  # Added automatically by torch-dist
-export KAFKA_URL='localhost:9092'
-export MONGO_URL='localhost:27017'
-
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 
 export PATH="$PATH:$HOME/.rvm/bin" # Add RVM to PATH for scripting
 export rvmsudo_secure_path=1
-
-#cuda
-export PATH=$PATH:/usr/local/cuda-8.0/bin # Add RVM to PATH for scripting
-export LD_LIBRARY_PATH=/usr/local/cuda-8.0/lib64:$LD_LIBRARY_PATH  # Added automatically by torch-dist
 
 # use vim keybindings
 bindkey -v
@@ -86,6 +68,7 @@ function zle-line-init zle-keymap-select {
 zle -N zle-line-init
 zle -N zle-keymap-select
 eval "$(thefuck --alias)"
+
 #source /opt/ros/kinetic/setup.zsh
 #source ~/catkin_ws/devel/setup.zsh
 
@@ -111,15 +94,3 @@ load-nvmrc() {
 }
 add-zsh-hook chpwd load-nvmrc
 load-nvmrc
-
-#Knowledge officer
-alias sshkoold='ssh m.osman@50.116.16.131'
-alias sshko='ssh km@3.16.67.160'
-alias sshkoubuntu='ssh ubuntu@3.16.67.160'
-alias sshkostaging='ssh marwan@69.164.202.153'
-alias sshkoproduction='ssh marwan@api.knowledgeofficer.com'
-alias sshengines='ssh marwan@18.216.202.61'
-alias sshkocontainerold='ssh ubuntu@18.191.231.197'
-alias sshkocontainer='ssh ubuntu@3.15.205.228'
-alias sshkomongo='ssh ubuntu@3.17.78.48'
-alias sshkoscrapper='ssh ubuntu@3.17.176.167'
