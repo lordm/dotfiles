@@ -41,6 +41,12 @@ Add your new plugin to the vimrc file using vim-plug, e.g.:
 ## Installation
 - required packages
 ```bash
+  curl -fLo ~/.vim/autoload/plug.vim --create-dirs \
+      https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+```
+
+
+```bash
   sudo apt-get install libncurses5 libncurses5-dev libncursesw5 ncurses-bin ncurses-base ctags ack-grep clang
   sudo dpkg-divert --local --divert /usr/bin/ack --rename --add /usr/bin/ack-grep
 ```
