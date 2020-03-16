@@ -4,7 +4,7 @@ echo "Backing up the old files..."
 cp ~/.vimrc ~/vimrc.old
 cp ~/.gvimrc ~/.gvimrc.old
 cp ~/.gitconfig ~/.gitconfig.old
-#cp ~/.tmux.conf ~/.tmux.old.conf
+cp ~/.tmux.conf ~/.tmux.old.conf
 cp ~/.zshrc ~/.zshrc_old
 
 echo "Installing Powerline"
@@ -23,7 +23,7 @@ ln -fs "$PWD/vim/gvimrc" ~/.gvimrc
 ln -fs "$PWD/gitconfig" ~/.gitconfig
 ln -fs "$PWD/fonts/ubuntu-mono" ~/.fonts/ubuntu-mono
 #ln -fs "$PWD/gitignore" ~/.gitignore
-#ln -fs "$PWD/tmux.conf" ~/.tmux.conf
+ln -fs "$PWD/tmux.conf" ~/.tmux.conf
 ln -fs "$PWD/zshrc" ~/.zshrc
 
 echo "All Done."
