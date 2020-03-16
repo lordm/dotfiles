@@ -95,3 +95,6 @@ load-nvmrc() {
 }
 add-zsh-hook chpwd load-nvmrc
 load-nvmrc
+
+# Force tmux to assume that the terminal support 256 colors
+alias tmux="tmux -2"
