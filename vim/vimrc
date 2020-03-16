@@ -4,7 +4,7 @@ call plug#begin('~/.vim/plugged')
   Plug 'tpope/vim-fugitive'
   Plug 'python-mode/python-mode', { 'for': 'python', 'branch': 'develop' }
   Plug 'majutsushi/tagbar'
-  "Plug 'sjl/gundo.vim'  "Needs to update to py3
+  Plug 'sjl/gundo.vim'  "Needs to update to py3
   Plug 'scrooloose/nerdtree'
   "Plug 'powerline/powerline' "Moved to python code
   Plug 'tpope/vim-rails'
@@ -144,6 +144,7 @@ let g:syntastic_auto_loc_list = 1
 let g:syntastic_check_on_open = 0
 let g:syntastic_check_on_wq = 1
 
+let g:gundo_prefer_python3 = 1
 
 let g:prettier#config#single_quote = 'true'
 let g:prettier#config#bracket_spacing = 'true'
