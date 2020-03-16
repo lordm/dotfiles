@@ -69,6 +69,7 @@ zle -N zle-line-init
 zle -N zle-keymap-select
 eval "$(thefuck --alias)"
 
+alias restartswap='sudo swapoff -a && sudo swapon -a'
 #source /opt/ros/kinetic/setup.zsh
 #source ~/catkin_ws/devel/setup.zsh
 
