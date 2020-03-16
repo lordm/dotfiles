@@ -4,7 +4,7 @@ call plug#begin('~/.vim/plugged')
   Plug 'tpope/vim-fugitive'
   Plug 'python-mode/python-mode', { 'for': 'python', 'branch': 'develop' }
   Plug 'majutsushi/tagbar'
-  "Plug 'sjl/gundo.vim'  "Needs to update to py3
+  Plug 'sjl/gundo.vim'  "Needs to update to py3
   Plug 'scrooloose/nerdtree'
   "Plug 'powerline/powerline' "Moved to python code
   Plug 'tpope/vim-rails'
@@ -28,6 +28,8 @@ call plug#begin('~/.vim/plugged')
   Plug 'mxw/vim-jsx'
   Plug 'prettier/vim-prettier', { 'do': 'yarn install' }
   "Plug 'taketwo/vim-ros' "Needs to update to py3
+  Plug 'rhysd/vim-clang-format'
+  Plug 'plasticboy/vim-markdown'
 call plug#end()
 
 set nocompatible                " Choose no compatibility with legacy vi
@@ -144,6 +146,8 @@ let g:syntastic_auto_loc_list = 1
 let g:syntastic_check_on_open = 0
 let g:syntastic_check_on_wq = 1
 
+let g:ale_linters = { 'python': ['flake8'], 'c': ['clang'], 'javascript': ['eslint'] }
+let g:gundo_prefer_python3 = 1
 
 let g:prettier#config#single_quote = 'true'
 let g:prettier#config#bracket_spacing = 'true'
