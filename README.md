@@ -47,11 +47,11 @@ Add your new plugin to the vimrc file using vim-plug, e.g.:
 
 
 ```bash
-  sudo apt-get install libncurses5 libncurses5-dev libncursesw5 ncurses-bin ncurses-base ctags ack-grep clang
+  sudo apt-get install libncurses5 libncurses5-dev libncursesw5 ncurses-bin ncurses-base ctags ack-grep clang cmake npm
   sudo dpkg-divert --local --divert /usr/bin/ack --rename --add /usr/bin/ack-grep
 ```
 
-- Compile vim from source using YCM installation guide [https://github.com/ycm-core/YouCompleteMe/wiki/Building-Vim-from-source](YCM VIM Installation)
+- Compile vim from source using YCM installation guide [https://github.com/ycm-core/YouCompleteMe/wiki/Building-Vim-from-source] (YCM VIM Installation)
 - Those are my prefered vim configuration flags
 ```bash
 ./configure --with-features=huge \
