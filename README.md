@@ -56,18 +56,17 @@ Add your new plugin to the vimrc file using vim-plug, e.g.:
 ```bash
 ./configure --with-features=huge \
             --enable-multibyte \
-	    --with-x \
-	    --enable-rubyinterp=yes \
-	    --with-ruby-command=/usr/bin/ruby \
-	    --enable-python3interp=yes \
-	    --with-python3-config-dir=/usr/lib/python3.5/config \
-	    --enable-perlinterp=yes \
-	    --enable-tclinterp=yes \
-	    --enable-luainterp=yes \
+            --with-x \
+            --enable-rubyinterp=yes \
+            --enable-python3interp=yes \
+            --with-python3-config-dir=$(python3-config --configdir) \
+            --enable-perlinterp=yes \
+            --enable-luainterp=yes \
             --enable-gui=gtk2 \
             --enable-cscope \
+            --enable-tclinterp=yes \
             --enable-fontset \
-	   --prefix=/usr/local
+            --prefix=/usr/local
 ```
 
 - Run install.sh (Caution: Revise before running)
