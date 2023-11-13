@@ -1,7 +1,7 @@
 [user]
-     name = Marwan Osman
-      email = lordm2005@gmail.com
-
+  name = Marwan Osman
+  email = marwan.aosman@gmail.com
+  signingkey = /home/marwan/.ssh/id_ed25519_sk
 [color]
   diff = auto
   status = auto
@@ -25,6 +25,7 @@
 [core]
   pager = less -FRSX
   whitespace=fix,-indent-with-non-tab,trailing-space,cr-at-eol
+  editor=vim
 [alias]
   co = checkout
   ci = commit -m
@@ -36,9 +37,17 @@
   br = branch
   lg = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=relative
   lgm = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=local --no-merges origin/master
+  cleanup = ! git branch -d `git branch --merged | grep -v '^*\\|main\\|master\\|staging\\|development'`
+  nuke = !sh -c 'git branch -D $1 && git push origin :$1' -
 [diff]
 	tool = vimdiff
 [merge]
 	tool = vimdiff
 [push]
 	default = simple
+[pull]
+  rebase = false
+[gpg]
+  format = ssh
+;[gpg "ssh"]
+	;allowedSignersFile = /home/marwan/.ssh/allowed_signers
