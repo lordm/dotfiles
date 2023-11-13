@@ -49,6 +49,7 @@ call plug#begin('~/.vim/plugged')
   Plug 'rhysd/vim-clang-format'
 
   Plug 'github/copilot.vim'
+  Plug 'voldikss/vim-floaterm'
 call plug#end()
 
 set nocompatible                " Choose no compatibility with legacy vi
@@ -180,3 +181,6 @@ let g:prettier#config#jsx_bracket_same_line = 'true'
 let g:prettier#config#arrow_parens = 'avoid'
 let g:prettier#config#trailing_comma ='none'
 let g:prettier#config#parser = 'babylon'
+
+command! LG FloatermNew lazygit
+nmap <leader>g :LG<CR>
