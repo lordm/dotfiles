@@ -50,6 +50,7 @@ call plug#begin('~/.vim/plugged')
 
   Plug 'github/copilot.vim'
   Plug 'voldikss/vim-floaterm'
+  Plug 'ptzz/lf.vim'
 call plug#end()
 
 set nocompatible                " Choose no compatibility with legacy vi
@@ -72,7 +73,7 @@ filetype plugin on              " Enable filetype-specific plugins
 set autoindent
 set smartindent
 set nowrap                      " Don't wrap lines
-set tabstop=2 shiftwidth=2      " A tab is two spaces (or set this to 4)
+set tabstop=4 shiftwidth=4      " A tab is two spaces (or set this to 4)
 set expandtab                   " Use spaces, not tabs (optional)
 set backspace=indent,eol,start  " Backspace through everything in insert mode
 set linespace=2
@@ -88,6 +89,7 @@ set visualbell                  " Don't beep
 set noerrorbells                " Don't beep
 
 "" Mappings
+map <Space> <Leader>
 nmap <F8> :TagbarToggle<CR>         " mapping f8 to TagbarToggle
 nmap <F2> :NERDTreeToggle<CR>       " mapping f2 to NERDTreeToggle
 noremap <F5> :GundoToggle<CR>       " mapping f5 to Gundo
