@@ -44,8 +44,30 @@ plugins=(git catimg rvm ruby python pip node ng npm command-time)
 
 source $ZSH/oh-my-zsh.sh
 
-export WORKON_HOME=~/.virtualenvs
-source /usr/local/bin/virtualenvwrapper.sh
+# not using anymore
+#export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3
+#export WORKON_HOME=/home/marwan/.local/bin/.virtualenvs
+#export VIRTUALENVWRAPPER_VIRTUALENV=$HOME/.local/bin/virtualenv
+#source /home/marwan/.local/bin/virtualenvwrapper.sh
+
+# NVIDIA CUDA Toolkit
+export PATH=/usr/local/cuda/bin${PATH:+:${PATH}}
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64
+
+# >>> conda initialize >>>
+# !! Contents within this block are managed by 'conda init' !!
+__conda_setup="$('/home/marwan/anaconda3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
+if [ $? -eq 0 ]; then
+    eval "$__conda_setup"
+else
+    if [ -f "/home/marwan/anaconda3/etc/profile.d/conda.sh" ]; then
+        . "/home/marwan/anaconda3/etc/profile.d/conda.sh"
+    else
+        export PATH="/home/marwan/anaconda3/bin:$PATH"
+    fi
+fi
+unset __conda_setup
+# <<< conda initialize <<<
 
 export EDITOR="vim"
 
@@ -67,7 +89,7 @@ function zle-line-init zle-keymap-select {
 }
 zle -N zle-line-init
 zle -N zle-keymap-select
-eval "$(thefuck --alias)"
+#eval "$(thefuck --alias)"
 
 alias restartswap='sudo swapoff -a && sudo swapon -a'
 #source /opt/ros/kinetic/setup.zsh
@@ -75,7 +97,9 @@ alias restartswap='sudo swapoff -a && sudo swapon -a'
 
 # place this after nvm initialization!
 # auto use .nvmrc files
-autoload -U add-zsh-hook
+#autoload -U add-zsh-hook
+
+
 load-nvmrc() {
   local node_version="$(nvm version)"
   local nvmrc_path="$(nvm_find_nvmrc)"
@@ -93,8 +117,22 @@ load-nvmrc() {
     nvm use default
   fi
 }
-add-zsh-hook chpwd load-nvmrc
+
+#add-zsh-hook chpwd load-nvmrc
 load-nvmrc
 
 # Force tmux to assume that the terminal support 256 colors
 alias tmux="tmux -2"
+
+alias dose='docker compose'
+
+# pyenv
+export PYENV_ROOT="$HOME/.pyenv"
+command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init -)"
+eval "$(pyenv virtualenv-init -)"
+
+# tmux theme
+powerline-config tmux setup
+
+# work related
