@@ -1,7 +1,10 @@
 # Marwan Osman's Dot Files
 Configurations and dotfiles for my development machine.
 
-## Vim Plugins Used (Managed by vim-plug)
+## Neovim Configuration
+
+## Vim Configuration
+### Vim Plugins Used (Managed by vim-plug)
 - Ack
 - Ctrlp
 - Fugitive
@@ -32,13 +35,13 @@ Configurations and dotfiles for my development machine.
 - vim-prettier
 - vim-ros (disabled till it upgrades to py3)
 
-## Adding a New Plugin
+### Adding a New Plugin
 Add your new plugin to the vimrc file using vim-plug, e.g.:
 ```
   Plug 'scrooloose/nerdtree'
 ```
 
-## Installation
+### Installation
 - required packages
 ```bash
   curl -fLo ~/.vim/autoload/plug.vim --create-dirs \
