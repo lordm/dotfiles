@@ -85,4 +85,10 @@ ln -fs "$PWD/zshrc" ~/.zshrc
 ln -fs "$PWD/nvim" ~/.config/nvim
 ln -fs "$PWD/zshrc_imi" ~/.zshrc_imi
 
+# Ghostty
+mkdir -p ~/.config/ghostty
+cp -r ~/.config/ghostty ~/.config/ghostty_old 2>/dev/null
+rm -rf ~/.config/ghostty
+ln -fs "$PWD/ghostty" ~/.config/ghostty
+
 echo "All Done."
