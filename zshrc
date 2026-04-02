@@ -36,6 +36,7 @@ ZSH_THEME="robbyrussell"
 # VCS as dirty. This makes repository status check for large repositories much,
 # much faster.
 # DISABLE_UNTRACKED_FILES_DIRTY="true"
+ZSH_DISABLE_COMPFIX="true"
 
 # Which plugins would you like to load? (plugins can be found in ~/.oh-my-zsh/plugins/*)
 # Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
@@ -44,32 +45,11 @@ plugins=(git catimg rvm ruby python pip node ng npm command-time)
 
 source $ZSH/oh-my-zsh.sh
 
-# not using anymore
-#export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3
-#export WORKON_HOME=/home/marwan/.local/bin/.virtualenvs
-#export VIRTUALENVWRAPPER_VIRTUALENV=$HOME/.local/bin/virtualenv
-#source /home/marwan/.local/bin/virtualenvwrapper.sh
-
 # NVIDIA CUDA Toolkit
 export PATH=/usr/local/cuda/bin${PATH:+:${PATH}}
 export LD_LIBRARY_PATH=/usr/local/cuda/lib64
 
-# >>> conda initialize >>>
-# !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('/home/marwan/anaconda3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
-if [ $? -eq 0 ]; then
-    eval "$__conda_setup"
-else
-    if [ -f "/home/marwan/anaconda3/etc/profile.d/conda.sh" ]; then
-        . "/home/marwan/anaconda3/etc/profile.d/conda.sh"
-    else
-        export PATH="/home/marwan/anaconda3/bin:$PATH"
-    fi
-fi
-unset __conda_setup
-# <<< conda initialize <<<
-
-export EDITOR="vim"
+export EDITOR="nvim"
 
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
@@ -92,9 +72,6 @@ zle -N zle-keymap-select
 #eval "$(thefuck --alias)"
 
 alias restartswap='sudo swapoff -a && sudo swapon -a'
-#source /opt/ros/kinetic/setup.zsh
-#source ~/catkin_ws/devel/setup.zsh
-
 # place this after nvm initialization!
 # auto use .nvmrc files
 #autoload -U add-zsh-hook
@@ -135,4 +112,39 @@ eval "$(pyenv virtualenv-init -)"
 # tmux theme
 powerline-config tmux setup
 
-# work related
+# Luarocks bin path
+[ -d ${HOME}/.luarocks/bin ] && {
+  export PATH="${HOME}/.luarocks/bin${PATH:+:${PATH}}"
+}
+
+alias claude-phi='CLAUDE_CONFIG_DIR=~/.config/claude-personal claude'
+
+# Neovim config switcher functions
+nvim-switch-nvchad() {
+  unlink ~/.config/nvim 2>/dev/null || true
+  ln -s ~/workspace/dotfiles/nvchad ~/.config/nvim
+  echo "Switched to NvChad"
+}
+
+nvim-switch-lazyvim() {
+  unlink ~/.config/nvim 2>/dev/null || true
+  ln -s ~/workspace/dotfiles/lazyvim ~/.config/nvim
+  echo "Switched to LazyVim"
+}
+
+alias nvchad='nvim-switch-nvchad'
+alias lazyvim='nvim-switch-lazyvim'
+
+if [ -f ~/.zshrc_imi ]; then
+    source ~/.zshrc_imi
+    load-imi
+fi
+
+df_docker_image() {
+  docker pull chenzj/dfimage
+  alias dfimage="docker run -v /var/run/docker.sock:/var/run/docker.sock --rm chenzj/dfimage"
+  #dfimage image_id
+}
+if command -v zoxide > /dev/null; then
+  eval "$(zoxide init zsh)"
+fi
