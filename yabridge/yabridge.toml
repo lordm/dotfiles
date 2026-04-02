@@ -1,0 +1,8 @@
+# yabridge configuration for Neural DSP plugins in REAPER
+# https://github.com/robbert-vdh/yabridge#configuration
+
+["Archetype Nolly X.vst3"]
+editor_force_dnd = true
+
+["Archetype Petrucci X.vst3"]
+editor_force_dnd = true

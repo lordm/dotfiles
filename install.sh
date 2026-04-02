@@ -91,4 +91,21 @@ cp -r ~/.config/ghostty ~/.config/ghostty_old 2>/dev/null
 rm -rf ~/.config/ghostty
 ln -fs "$PWD/ghostty" ~/.config/ghostty
 
+# PipeWire low-latency config
+mkdir -p ~/.config/pipewire/pipewire.conf.d
+ln -fs "$PWD/pipewire/pipewire.conf.d/99-low-latency.conf" ~/.config/pipewire/pipewire.conf.d/99-low-latency.conf
+
+# WirePlumber ALSA tuning (Scarlett Solo)
+mkdir -p ~/.config/wireplumber/main.lua.d
+ln -fs "$PWD/wireplumber/main.lua.d/51-scarlett-low-latency.lua" ~/.config/wireplumber/main.lua.d/51-scarlett-low-latency.lua
+
+# Yabridge config
+mkdir -p ~/.config/yabridge
+ln -fs "$PWD/yabridge/yabridge.toml" ~/.config/yabridge/yabridge.toml
+
+# Scripts
+mkdir -p ~/scripts
+ln -fs "$PWD/scripts/guitar-session.sh" ~/scripts/guitar-session.sh
+ln -fs "$PWD/scripts/setup-neuraldsp.sh" ~/scripts/setup-neuraldsp.sh
+
 echo "All Done."
