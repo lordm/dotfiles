@@ -1,0 +1,50 @@
+# Ghostty Config — Astigmatism-Optimized Settings
+# =================================================
+# Add these to your ~/.config/ghostty/config
+# (merge with your existing config as needed)
+#
+# First, install the theme file:
+#   cp astigmatism-dark ~/.config/ghostty/themes/astigmatism-dark
+
+# ── Theme ──
+theme = astigmatism-dark
+
+# ── Font ──
+# JetBrains Mono is excellent for astigmatism: open apertures,
+# generous counters, distinct similar chars (0/O, 1/l/I).
+# Bump to 15–16pt for comfortable reading with your prescription.
+font-family = JetBrains Mono
+font-size = 15
+
+# Disable ligatures — they merge characters, which astigmatic
+# blur makes harder to parse. Keep each glyph distinct.
+font-feature = -calt
+font-feature = -liga
+font-feature = -dlig
+
+# ── Spacing ──
+# Extra vertical breathing room reduces line-merging blur.
+# 30–40% is the sweet spot for astigmatism.
+adjust-cell-height = 35%
+
+# ── Rendering ──
+# linear-corrected eliminates darkening artifacts around text edges
+# that are especially noticeable with astigmatism (color fringing).
+alpha-blending = linear-corrected
+
+# ── Cursor ──
+# Block cursor is easier to track than thin bar with astigmatism.
+cursor-style = block
+cursor-style-blink = false
+
+# ── Window ──
+# Padding gives text room to breathe at the edges.
+window-padding-x = 12
+window-padding-y = 8
+window-padding-balance = true
+
+# ── Optional: background opacity ──
+# If you use a compositor, slight transparency + blur can
+# soften the overall contrast further. Uncomment to try:
+# background-opacity = 0.95
+# background-blur-radius = 20

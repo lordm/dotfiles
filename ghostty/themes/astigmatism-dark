@@ -1,0 +1,60 @@
+# Astigmatism-Optimized Dark Theme for Ghostty
+# =============================================
+# Designed for: R +1.00 -1.00×80 | L +0.75 -1.25×95
+#
+# Principles:
+#   - No pure black/white → reduces halation (glow/bleed around bright text)
+#   - Warm tinted dark gray bg + off-white fg → ~11:1 contrast (not max 21:1)
+#   - Muted but distinguishable palette colors → less scatter through astigmatic lens
+#   - All ANSI colors shifted slightly warm and desaturated
+#
+# Install: cp this file to ~/.config/ghostty/themes/astigmatism-dark
+#          then set: theme = astigmatism-dark
+
+# Core colors — warm dark gray, warm off-white
+background = #1c1c22
+foreground = #d1cfc9
+
+# Cursor — amber accent, visible without being harsh
+cursor-color = #c4956a
+cursor-text = #1c1c22
+
+# Selection — low-contrast warm highlight
+selection-background = #3d3a4a
+selection-foreground = #e4e2db
+
+# Palette — muted, warm-shifted, reduced saturation
+# The goal: every color is clearly distinguishable but none are
+# bright enough to cause halation against the dark background.
+
+# Black (normal / bright)
+palette = 0=#2a2a33
+palette = 8=#4a4a55
+
+# Red (normal / bright) — warm, pulled toward brick
+palette = 1=#c47070
+palette = 9=#d48a8a
+
+# Green (normal / bright) — sage, desaturated
+palette = 2=#8aad7a
+palette = 10=#a0c290
+
+# Yellow (normal / bright) — amber, not screaming
+palette = 3=#c4a46a
+palette = 11=#d4b87a
+
+# Blue (normal / bright) — steel, warm-shifted
+palette = 4=#7a9aad
+palette = 12=#8ab0c4
+
+# Magenta (normal / bright) — dusty rose
+palette = 5=#ad7aaa
+palette = 13=#c490c0
+
+# Cyan (normal / bright) — teal, muted
+palette = 6=#70a5a0
+palette = 14=#88bab5
+
+# White (normal / bright) — off-white, never #fff
+palette = 7=#b5b3ac
+palette = 15=#d1cfc9

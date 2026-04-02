@@ -1,0 +1,84 @@
+# Ghostty Configuration
+# Reload with Ctrl+Shift+,
+
+# Theme
+# theme = Builtin Tango Dark
+
+# Font
+# font-family = UbuntuMono Nerd Font
+# font-size = 14
+
+# Font rendering (Linux/FreeType) - disable hinting for smoother GNOME-like rendering
+# freetype-load-flags = no-hinting,no-force-autohint,no-monochrome,no-autohint
+
+# Cursor
+# cursor-style = bar
+# cursor-style-blink = true
+# cursor-color = #ffffff
+
+# Window
+background-opacity = 1
+# window-padding-x = 4
+# window-padding-y = 4
+# window-decoration = auto
+
+# Terminal
+scrollback-limit = 10000
+copy-on-select = clipboard
+mouse-hide-while-typing = true
+
+# No need for Ghostty tabs/splits - using Tmux
+keybind = ctrl+shift+t=ignore
+keybind = ctrl+shift+n=ignore
+
+# Quick font size adjustments
+keybind = ctrl+equal=increase_font_size:1
+keybind = ctrl+minus=decrease_font_size:1
+keybind = ctrl+0=reset_font_size
+
+# Multi-line support for Claude Code
+keybind = shift+enter=text:\x0a
+
+# ── Theme ──
+theme = astigmatism-dark
+#
+# ── Font ──
+# JetBrains Mono is excellent for astigmatism: open apertures,
+# generous counters, distinct similar chars (0/O, 1/l/I).
+# Bump to 15–16pt for comfortable reading with your prescription.
+font-family = JetBrains Mono
+font-size = 13
+
+# Disable ligatures — they merge characters, which astigmatic
+# blur makes harder to parse. Keep each glyph distinct.
+font-feature = -calt
+font-feature = -liga
+font-feature = -dlig
+
+# ── Spacing ──
+# Extra vertical breathing room reduces line-merging blur.
+# 30–40% is the sweet spot for astigmatism.
+# adjust-cell-height = 30%
+
+# ── Rendering ──
+# linear-corrected eliminates darkening artifacts around text edges
+# that are especially noticeable with astigmatism (color fringing).
+alpha-blending = linear-corrected
+
+# ── Cursor ──
+# Block cursor is easier to track than thin bar with astigmatism.
+cursor-style = block
+cursor-style-blink = false
+
+# ── Window ──
+# Padding gives text room to breathe at the edges.
+# window-padding-x = 10
+# window-padding-y = 8
+window-padding-balance = true
+
+# ── Optional: background opacity ──
+# If you use a compositor, slight transparency + blur can
+# soften the overall contrast further. Uncomment to try:
+# background-opacity = 0.95
+# background-blur-radius = 20
+vsync = true
