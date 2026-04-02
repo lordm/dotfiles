@@ -37,3 +37,5 @@ require "nvchad.autocmds"
 vim.schedule(function()
   require "mappings"
 end)
+
+-- command! -nargs=? BedrockKeys lua require('configs.bedrock_keys').set_bedrock_keys(<q-args> ~= "" and <q-args> or nil)

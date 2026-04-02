@@ -12,10 +12,13 @@ sudo groupadd docker
 sudo usermod -aG docker $USER
 
 # Essential packages
-sudo apt install checkinstall git make build-essential libssl-dev zlib1g-dev cloudflare-warp nmap powertop iotop tlp tlp-rdw zip gnome-power-manager gparted jq
+# cloudflare-warp  ?
+sudo apt install checkinstall git make build-essential libssl-dev zlib1g-dev htop nmap powertop iotop tlp tlp-rdw zip gnome-power-manager gparted jq python-is-python3
 
 # Media packages
 sudo apt install vlc ffmpeg gimp audacity guitarix blender obs-studio
+
+sudo apt install gnome-shell-extension-manager chrome-gnome-shell
 
 # ohmyzsh
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
@@ -35,15 +38,17 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 nvm install node
 
 # pyenv
+sudo apt update; sudo apt install build-essential libssl-dev zlib1g-dev \
+libbz2-dev libreadline-dev libsqlite3-dev curl git \
+libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev
 curl https://pyenv.run | bash
 
-pyenv install 3.11
-pyenv global 3.11
-pip install s3cmd
-pip install uv
-pip install poetry
+pyenv install 3.12
+pyenv global 3.12
+pip install s3cmd kubernetes
 
 # neovim dependencies
+# fd ?
 sudo apt install ripgrep fd
 
 # install lazyman
@@ -78,5 +83,6 @@ ln -fs "$PWD/gitignore" ~/.gitignore
 ln -fs "$PWD/tmux.conf" ~/.tmux.conf
 ln -fs "$PWD/zshrc" ~/.zshrc
 ln -fs "$PWD/nvim" ~/.config/nvim
+ln -fs "$PWD/zshrc_imi" ~/.zshrc_imi
 
 echo "All Done."
