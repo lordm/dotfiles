@@ -63,7 +63,8 @@ font-feature = -dlig
 # ── Rendering ──
 # linear-corrected eliminates darkening artifacts around text edges
 # that are especially noticeable with astigmatism (color fringing).
-alpha-blending = linear-corrected
+# Disabled: was driving high GPU usage. Re-enable if fringing returns.
+# alpha-blending = linear-corrected
 
 # ── Cursor ──
 # Block cursor is easier to track than thin bar with astigmatism.
@@ -81,4 +82,3 @@ window-padding-balance = true
 # soften the overall contrast further. Uncomment to try:
 # background-opacity = 0.95
 # background-blur-radius = 20
-vsync = true
