@@ -203,7 +203,7 @@ All configs are symlinked from this repository to home directory:
 ~/workspace/dotfiles/gitconfig        → ~/.gitconfig
 ~/workspace/dotfiles/tmux.conf        → ~/.tmux.conf
 ~/workspace/dotfiles/zshrc            → ~/.zshrc
-~/workspace/dotfiles/nvchad/          → ~/.config/nvim (default)
+~/workspace/dotfiles/lazyvim/         → ~/.config/nvim (default)
 ~/workspace/dotfiles/ghostty/         → ~/.config/ghostty
 ~/workspace/dotfiles/pipewire/...     → ~/.config/pipewire/...
 ~/workspace/dotfiles/wireplumber/...  → ~/.config/wireplumber/...

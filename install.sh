@@ -47,13 +47,9 @@ pyenv install 3.12
 pyenv global 3.12
 pip install s3cmd kubernetes
 
-# neovim dependencies
-# fd ?
+# neovim (latest stable) + dependencies
+sudo snap install nvim --classic
 sudo apt install ripgrep fd
-
-# install lazyman
-git clone https://github.com/doctorfree/nvim-lazyman $HOME/.config/nvim-Lazyman
-$HOME/.config/nvim-Lazyman/lazyman.sh
 
 # k9s
 wget https://github.com/derailed/k9s/releases/download/v0.31.9/k9s_linux_amd64.deb && dpkg -i k9s_linux_amd64.deb
@@ -82,7 +78,8 @@ ln -fs "$PWD/gitconfig" ~/.gitconfig
 ln -fs "$PWD/gitignore" ~/.gitignore
 ln -fs "$PWD/tmux.conf" ~/.tmux.conf
 ln -fs "$PWD/zshrc" ~/.zshrc
-ln -fs "$PWD/nvim" ~/.config/nvim
+mkdir -p ~/.config
+ln -fs "$PWD/lazyvim" ~/.config/nvim   # default config; switch with `nvchad`/`lazyvim` aliases
 ln -fs "$PWD/zshrc_imi" ~/.zshrc_imi
 
 # Ghostty
