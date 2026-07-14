@@ -51,6 +51,25 @@ pip install s3cmd kubernetes
 sudo snap install nvim --classic
 sudo apt install ripgrep fd
 
+# tmux — built from source, NOT installed from snap.
+# /snap/bin/tmux is a symlink to /usr/bin/snap, so every `tmux` call made by a
+# status-line script (tmux-continuum, powerline) pays a full snap + squashfs
+# launch. Those calls pile up faster than they finish and stall the block layer
+# system-wide (high iowait with zero disk throughput). apt only ships 3.4, hence
+# the source build. Installs to ~/.local, which outranks /snap/bin on PATH.
+sudo snap remove tmux 2>/dev/null || true
+sudo apt install -y libevent-dev libncurses-dev bison pkg-config
+TMUX_VERSION=$(curl -s "https://api.github.com/repos/tmux/tmux/releases/latest" | grep -Po '"tag_name": "\K[^"]*')
+mkdir -p ~/builds
+(
+  cd ~/builds
+  curl -fsSL -O "https://github.com/tmux/tmux/releases/download/${TMUX_VERSION}/tmux-${TMUX_VERSION}.tar.gz"
+  tar xzf "tmux-${TMUX_VERSION}.tar.gz"
+  cd "tmux-${TMUX_VERSION}"
+  ./configure --prefix="$HOME/.local"
+  make -j"$(nproc)" && make install
+)
+
 # k9s
 wget https://github.com/derailed/k9s/releases/download/v0.31.9/k9s_linux_amd64.deb && dpkg -i k9s_linux_amd64.deb
 
@@ -63,9 +82,6 @@ cp ~/.gvimrc ~/.gvimrc.old
 cp ~/.gitconfig ~/.gitconfig.old
 cp ~/.tmux.conf ~/.tmux.old.conf
 cp ~/.zshrc ~/.zshrc_old
-
-echo "Installing Powerline"
-pip install powerline-status
 
 echo "Installing Zsh command-time"
 git clone https://github.com/popstas/zsh-command-time.git ~/.oh-my-zsh/custom/plugins/command-time 2> /dev/null ||  (cd ~/.oh-my-zsh/custom/plugins/command-time; git pull)

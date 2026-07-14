@@ -109,8 +109,10 @@ command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
 eval "$(pyenv init -)"
 eval "$(pyenv virtualenv-init -)"
 
-# tmux theme
-powerline-config tmux setup
+# tmux theme: powerline is deliberately NOT used. It rebuilt the status bar by
+# shelling out to `tmux`, which resolves to the snap wrapper (/snap/bin/tmux ->
+# /usr/bin/snap); every status tick then paid a full snap+squashfs launch. That
+# stalled the block layer system-wide. The status bar in tmux.conf replaces it.
 
 # Luarocks bin path
 [ -d ${HOME}/.luarocks/bin ] && {
