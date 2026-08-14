@@ -107,7 +107,6 @@ Then run `:PlugInstall` in Vim.
 ```bash
 dose                # docker compose
 tmux                # tmux -2 (256 color support)
-claude-phi          # Claude Code with personal config
 nvchad              # Switch Neovim to NvChad
 lazyvim             # Switch Neovim to LazyVim
 restartswap         # Restart swap space

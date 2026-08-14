@@ -119,8 +119,6 @@ eval "$(pyenv virtualenv-init -)"
   export PATH="${HOME}/.luarocks/bin${PATH:+:${PATH}}"
 }
 
-alias claude-phi='CLAUDE_CONFIG_DIR=~/.config/claude-personal claude'
-
 # Neovim config switcher functions
 nvim-switch-nvchad() {
   unlink ~/.config/nvim 2>/dev/null || true

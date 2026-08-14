@@ -60,14 +60,11 @@ This is a personal dotfiles repository for setting up a complete development env
 
 **Key Features**:
 - Vim keybindings (`bindkey -v`)
-- Auto-switches Node.js versions based on `.nvmrc` (zshrc:103-119)
+- Auto-switches Node.js versions based on `.nvmrc` (zshrc:76-99)
 - Pyenv integration for Python version management
 - Custom aliases: `dose` (docker compose), `tmux` (tmux -2)
-- Claude Code aliases:
-  - `claude-phi`: Personal Claude config
-  - `claude-imi`: Work Claude config with Bedrock
 
-**Auto-loading**: Conditionally sources `~/.zshrc_imi` if present (zshrc:152-155)
+**Auto-loading**: Conditionally sources `~/.zshrc_imi` if present (zshrc:138-141)
 
 ### Tmux
 - **Config**: `tmux.conf`
@@ -124,7 +121,14 @@ Installed via script with user added to docker group. Use `dose` alias for `dock
 ## Special Configurations
 
 ### Claude Code Integration
-Neovim has `claude-code.nvim` plugin with custom keybinds (nvim/lua/plugins/init.lua:111-148):
+Both Neovim configs launch plain `claude` — there is no `CLAUDE_CONFIG_DIR` override anywhere,
+so they use the default config at `~/.claude`.
+
+LazyVim (the active config) uses `coder/claudecode.nvim` (lazyvim/lua/plugins/claudecode.lua):
+- Toggle: `<leader>ap`, continue: `<leader>aP`, resume: `<leader>ar`
+- Focus: `<C-,>` (terminal), select model: `<leader>am`, send selection: `<leader>as` (visual)
+
+NvChad uses `greggh/claude-code.nvim` (nvchad/lua/plugins/init.lua:211-250):
 - Toggle: `<leader>c,` (normal), `<C-,>` (terminal)
 - Variants: `<leader>cC` (continue), `<leader>cV` (verbose)
 - Auto-refresh enabled with git root detection
