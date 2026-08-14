@@ -120,6 +120,7 @@ ln -fs "$PWD/yabridge/yabridge.toml" ~/.config/yabridge/yabridge.toml
 mkdir -p ~/scripts
 ln -fs "$PWD/scripts/guitar-session.sh" ~/scripts/guitar-session.sh
 ln -fs "$PWD/scripts/setup-neuraldsp.sh" ~/scripts/setup-neuraldsp.sh
+ln -fs "$PWD/scripts/setup-hibernate.sh" ~/scripts/setup-hibernate.sh
 ln -fs "$PWD/scripts/tmux-status.sh" ~/scripts/tmux-status.sh
 
 echo "All Done."

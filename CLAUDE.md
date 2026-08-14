@@ -139,6 +139,32 @@ Configured nvim-dap-python using Mason-installed debugpy (nvim/lua/plugins/init.
 ### Testing
 Neotest configured for Python testing (nvim/lua/configs/neotest.lua).
 
+### Power Management (hibernate, not suspend)
+`scripts/setup-hibernate.sh` makes the laptop hibernate rather than suspend when it is on
+battery, so a power cut doesn't cost the session. Run it manually — `install.sh` only
+symlinks it, since it needs sudo and is a one-time system tweak.
+
+It changes two things, neither of which lives in this repo:
+- `/etc/UPower/UPower.conf`: `CriticalPowerAction=Hibernate` (was `HybridSleep`, which
+  writes an image but stays in S3 and keeps draining until it dies mid-suspend), and
+  thresholds `PercentageLow/Critical/Action=20/10/5` (was `20/5/2` — 2% is thin margin
+  for a multi-second image write).
+- dconf: `org.gnome.settings-daemon.plugins.power lid-close-battery-action=hibernate`.
+  AC is deliberately left on `suspend`.
+
+Gotchas worth knowing before changing any of this:
+- **gsd-power holds the logind `handle-lid-switch` inhibitor**, so `/etc/systemd/logind.conf`
+  is inert on this machine. gsettings is the only effective lid knob under GNOME.
+- **`suspend-then-hibernate` is not available per-power-source here.** GNOME's action enum
+  doesn't include it, and systemd 255 lacks `HibernateOnACPower=` (added in 256) to scope
+  it to battery. Hence immediate hibernate on lid close, at the cost of instant wake.
+- **Swap (14.9G) is smaller than RAM (31G).** The kernel caps the image at
+  `/sys/power/image_size` (2/5 of RAM ≈ 11.6 GiB) so it works in practice, but hibernation
+  fails if active memory ever exceeds that cap. The script warns rather than fails.
+- NVIDIA needs `NVreg_PreserveVideoMemoryAllocations=1` (already set in
+  `/etc/modprobe.d/nvidia-graphics-drivers-kms.conf`) or resume comes back with a
+  corrupted display.
+
 ## Path Variables
 Key paths added in zshrc:
 - CUDA Toolkit: `/usr/local/cuda/bin`
