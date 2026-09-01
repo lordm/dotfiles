@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from tts.engine import StubEngine, SAMPLE_RATE
+from tts.engine import StubEngine, SAMPLE_RATE, _compute_model_dir
 
 
 class TestStubEngine:
@@ -46,3 +46,38 @@ class TestKokoroEngineMissingModel:
                 model_path=tmp_path / "missing.onnx",
                 voices_path=tmp_path / "missing-voices.bin",
             )
+
+
+class TestModelDirResolution:
+    """MODEL_DIR/MODEL_PATH/VOICES_PATH are computed once at import time, so
+    these tests exercise the resolution function directly against a patched
+    environment rather than the module-level constants (which would not
+    observe env changes made after import).
+    """
+
+    def test_honors_xdg_data_home(self, tmp_path, monkeypatch):
+        # scripts/setup-tts.sh and tts/ttsd.py both derive their share
+        # directory from $XDG_DATA_HOME; engine.py must resolve to the same
+        # place or a clean bootstrap silently installs into a directory the
+        # daemon never looks in.
+        monkeypatch.delenv("TTS_MODEL_DIR", raising=False)
+        monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+
+        model_dir = _compute_model_dir()
+
+        assert model_dir == tmp_path / "tts" / "models"
+
+    def test_tts_model_dir_overrides_xdg_data_home(self, tmp_path, monkeypatch):
+        override = tmp_path / "custom-models"
+        monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "unused-xdg"))
+        monkeypatch.setenv("TTS_MODEL_DIR", str(override))
+
+        assert _compute_model_dir() == override
+
+    def test_defaults_to_home_local_share_without_xdg_data_home(self, monkeypatch):
+        from pathlib import Path
+
+        monkeypatch.delenv("TTS_MODEL_DIR", raising=False)
+        monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+
+        assert _compute_model_dir() == Path.home() / ".local/share" / "tts" / "models"

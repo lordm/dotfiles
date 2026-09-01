@@ -16,9 +16,25 @@ import numpy as np
 
 SAMPLE_RATE = 24000
 
-MODEL_DIR = Path(
-    os.environ.get("TTS_MODEL_DIR", Path.home() / ".local/share/tts/models")
-)
+
+def _compute_model_dir() -> Path:
+    """Resolve the models directory.
+
+    $TTS_MODEL_DIR overrides everything. Otherwise this follows $XDG_DATA_HOME
+    the same way scripts/setup-tts.sh and tts/ttsd.py do, so a bootstrap run
+    and the daemon always agree on where the models live. Factored into a
+    function (rather than inlined at module scope) so tests can exercise the
+    resolution logic against a patched environment without needing to reload
+    the module.
+    """
+    override = os.environ.get("TTS_MODEL_DIR")
+    if override:
+        return Path(override)
+    share = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local/share"))
+    return share / "tts" / "models"
+
+
+MODEL_DIR = _compute_model_dir()
 MODEL_PATH = MODEL_DIR / "kokoro-v1.0.onnx"
 VOICES_PATH = MODEL_DIR / "voices-v1.0.bin"
 
