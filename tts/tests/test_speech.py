@@ -145,6 +145,41 @@ class TestPathsInProse:
         text = "See src/a/b.py:42 there."
         assert clean_for_speech(text) == "See b.py line 42 there."
 
+    def test_decimal_ratio_not_path(self):
+        """Decimal ratios like 3/4.5 should not be treated as paths."""
+        text = "The ratio is 3/4.5 exactly."
+        assert clean_for_speech(text) == "The ratio is 3/4.5 exactly."
+
+    def test_exchange_rate_not_path(self):
+        """Exchange rates with decimals should not be treated as paths."""
+        text = "The exchange rate is 1/1.25 today."
+        assert clean_for_speech(text) == "The exchange rate is 1/1.25 today."
+
+    def test_command_line_flag_not_path(self):
+        """Command-line flags like /v should not be treated as paths."""
+        text = "Use option /v for verbose."
+        assert clean_for_speech(text) == "Use option /v for verbose."
+
+    def test_absolute_path_must_have_multiple_segments(self):
+        """Single-segment absolute paths without extension are not paths."""
+        text = "Check /tmp or /var directory."
+        assert clean_for_speech(text) == "Check /tmp or /var directory."
+
+    def test_absolute_path_with_multiple_segments_still_reduced(self):
+        """Multi-segment absolute paths should still be reduced (adversarial: should transform)."""
+        text = "Edited /etc/systemd/system/foo.service config."
+        assert clean_for_speech(text) == "Edited foo.service config."
+
+    def test_relative_path_with_two_segments_and_extension(self):
+        """Relative paths with multiple segments and extension should transform (adversarial: should transform)."""
+        text = "See configs/app.json for settings."
+        assert clean_for_speech(text) == "See app.json for settings."
+
+    def test_version_number_in_path_not_treated_as_path(self):
+        """Version numbers like /v2.5 should not be treated as paths (extension must start with letter)."""
+        text = "Check version /v2.5 API doc."
+        assert clean_for_speech(text) == "Check version /v2.5 API doc."
+
 
 class TestEmphasisBoundaries:
     """Ensure emphasis markers are only stripped when paired, not in identifiers."""
@@ -182,3 +217,44 @@ class TestEmphasisBoundaries:
     def test_original_test_still_works(self):
         """Original test from brief must still pass."""
         assert clean_for_speech("This is **very** _odd_.") == "This is very odd."
+
+    def test_multiple_asterisks_on_one_line_not_mispaired(self):
+        """Multiple asterisks on one line must not be mispaired across expressions."""
+        text = "The area is 3 * 4 and 5 * 6."
+        assert clean_for_speech(text) == "The area is 3 * 4 and 5 * 6."
+
+    def test_multiple_globs_on_one_line_not_mispaired(self):
+        """Multiple glob patterns on one line should not be mispaired."""
+        text = "Match files with *.py and *.md globs."
+        assert clean_for_speech(text) == "Match files with *.py and *.md globs."
+
+    def test_asterisk_requires_non_space_after(self):
+        """Asterisks with space after are not emphasis openers."""
+        text = "Use * to denote items in a list."
+        assert clean_for_speech(text) == "Use * to denote items in a list."
+
+    def test_underscore_requires_non_space_after(self):
+        """Underscores with space after are not emphasis openers."""
+        text = "The _ character appears in names."
+        assert clean_for_speech(text) == "The _ character appears in names."
+
+    def test_paired_emphasis_on_same_line_works(self):
+        """Paired emphasis markers on the same line should still work (adversarial: should transform)."""
+        text = "This is *italic* and **bold** text."
+        assert clean_for_speech(text) == "This is italic and bold text."
+
+    def test_emphasis_with_punctuation_inside_works(self):
+        """Emphasis can contain punctuation but no matching marker (adversarial: should transform)."""
+        text = "Use _snake_case_ naming convention."
+        # Note: 'snake_case' contains an underscore, but it's inside the emphasis markers
+        # The first _snake and last case_ won't match the pairing rule (no inner underscores)
+        # So this actually should NOT match. Let me reconsider...
+        # Actually, with the property that says "contains no occurrence of that same marker inside",
+        # _snake_case_ would not be matched as emphasis.
+        # So this should remain unchanged.
+        assert clean_for_speech(text) == "Use _snake_case_ naming convention."
+
+    def test_emphasis_with_only_non_marker_punctuation_works(self):
+        """Emphasis with punctuation but no matching marker should work (adversarial: should transform)."""
+        text = "This is *very-important* concept."
+        assert clean_for_speech(text) == "This is very-important concept."
