@@ -6,13 +6,20 @@ Synthesis runs sentence by sentence on a worker thread and is streamed into a
 paplay subprocess, so audio begins after the first sentence and interruption is
 just killing that subprocess.
 
-Two threads meet here. The socket thread accepts messages and must always
-return promptly — a hook that waits on synthesis is a hook that stalls the
-agent. The worker thread does everything slow: synthesis (hundreds of
-milliseconds) and writing into paplay (which blocks in real time once the pipe
-fills). Neither of those may happen under a lock, so the lock protects only the
-bookkeeping: the generation counter, the installed player, and the speaking
-flag. See _claim_playback for the one subtle consequence.
+Three threads meet here. The socket thread accepts messages and must always
+return promptly: a full AF_UNIX backlog makes the next connect() block rather
+than fail, so an accept loop parked in a subprocess reaches all the way back
+into the agent whose hook is trying to connect. It therefore does nothing but
+bookkeeping — commands are applied in place, since they only set flags and
+kill a subprocess, and an utterance goes onto the intake queue. The intake
+thread decides what becomes of that utterance: both the tmux focus query and
+the desktop notification fork a subprocess, and neither may be waited on by
+the accept loop. The worker thread does the rest — synthesis (hundreds of
+milliseconds), writing into paplay (which blocks in real time once the pipe
+fills), and waiting for the audio to drain at the end of an utterance. None of
+that may happen under a lock, so the lock protects only the bookkeeping: the
+generation counter, the installed and retiring players, and the speaking flag.
+See _claim_playback for the one subtle consequence.
 """
 
 from __future__ import annotations
@@ -37,9 +44,17 @@ from tts.speech import prepare, split_sentences
 DEFAULT_CONFIG = Path.home() / ".config/tts/config.toml"
 
 # How long a connected client may stay silent before the daemon hangs up. The
-# accept loop is single-threaded on purpose (handling a message is microseconds
-# of bookkeeping), so an idle client is the one thing that could stall it.
+# accept loop is single-threaded on purpose — handling a message really is
+# microseconds of bookkeeping, now that the focus query and the notification
+# happen on the intake thread — so an idle client is the one thing that could
+# stall it.
 CLIENT_TIMEOUT = 1.0
+
+# How many utterances may be waiting on the intake thread. Reaching this means
+# something upstream is wedged (a hung tmux, a stalled notification daemon) and
+# the right answer is to drop narration rather than let a hostile or broken
+# client grow the daemon's memory a megabyte at a time.
+INTAKE_BACKLOG = 64
 
 # Once a client has been served, how long to wait for a follow-up message on
 # the same connection before hanging up. Long enough not to truncate a client
@@ -163,12 +178,21 @@ def load_config(path: Path | None = None) -> Config:
 
 
 def notify(title: str, body: str) -> None:
-    """Desktop fallback for sessions that are not in view."""
+    """Desktop fallback for sessions that are not in view.
+
+    Spawned and forgotten. Nothing here reads notify-send's output or cares
+    whether it succeeded, and waiting on it only creates a way for a wedged
+    notification daemon to stall the thread that called this — which is the
+    exact scenario this feature invites, with several unfocused agents all
+    routed here at once. Nothing pipes its output either: an unread pipe fills
+    and blocks the very process this refuses to wait for.
+    """
     try:
-        subprocess.run(
+        subprocess.Popen(
             ["notify-send", "-u", "normal", "-i", "audio-speakers", "-a", title, title, body],
-            capture_output=True,
-            timeout=3,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
     except (OSError, subprocess.SubprocessError):
         pass
@@ -294,6 +318,7 @@ class Daemon:
         self._player_factory = player_factory
         self._notify = notifier
         self._work: queue.Queue = queue.Queue()
+        self._intake: queue.Queue = queue.Queue(maxsize=INTAKE_BACKLOG)
         self._playback: _Playback | None = None
         self._retiring: _Playback | None = None
         self._speaking = False
@@ -329,7 +354,7 @@ class Daemon:
             "muted": self.muted,
             "speaking": speaking,
             "voice": self.config.voice,
-            "queued": self._work.qsize(),
+            "queued": self._work.qsize() + self._intake.qsize(),
         }
 
     # ---- message handling --------------------------------------------
@@ -545,6 +570,26 @@ class Daemon:
         with self._lock:
             self._speaking = False
 
+    def run_intake(self) -> None:
+        """Turn accepted messages into queued speech, off the accept loop.
+
+        handle() forks tmux to ask whether the pane is in view and forks
+        notify-send when it is not, and the accept loop may not wait on either.
+        It gets its own thread rather than being folded into the worker: the
+        worker spends most of an utterance blocked inside paplay, so a new
+        message reaching it would only be examined once the previous utterance
+        had finished playing — and "newest utterance wins" would stop meaning
+        anything.
+        """
+        while True:
+            message = self._intake.get()
+            if message is _STOP:
+                return
+            try:
+                self.handle(message)
+            except Exception as exc:  # noqa: BLE001 - one bad message, not the daemon
+                _warn(f"failed to handle message: {exc}")
+
     def run_worker(self) -> None:
         while True:
             item = self._work.get()
@@ -576,6 +621,8 @@ class Daemon:
         self._server = server
         worker = threading.Thread(target=self.run_worker, daemon=True)
         worker.start()
+        intake = threading.Thread(target=self.run_intake, daemon=True)
+        intake.start()
         try:
             while not self._stop_serving.is_set():
                 try:
@@ -589,6 +636,10 @@ class Daemon:
                     self._serve_connection(conn)
         finally:
             self._stop_serving.set()
+            try:
+                self._intake.put_nowait(_STOP)
+            except queue.Full:
+                pass  # wedged intake; it is a daemon thread and dies with us
             self._work.put(_STOP)
             server.close()
             self._server = None
@@ -648,10 +699,22 @@ class Daemon:
             except OSError:
                 pass  # client hung up before reading; not our problem
             return
+        if message.get("cmd") is not None:
+            # Commands stay on this thread. stop and toggle are flag writes and
+            # a kill(), which is the whole point of them: `tts stop` queued
+            # behind an utterance would not be a stop.
+            try:
+                self.handle(message)
+            except Exception as exc:  # noqa: BLE001 - a bad message, not the daemon
+                _warn(f"failed to handle message: {exc}")
+            return
+        # An utterance. Deciding what to do with it means forking tmux and
+        # possibly notify-send, and this thread is the one every hook's
+        # connect() is waiting behind, so it only hands the message over.
         try:
-            self.handle(message)
-        except Exception as exc:  # noqa: BLE001 - a bad message must not end the daemon
-            _warn(f"failed to handle message: {exc}")
+            self._intake.put_nowait(message)
+        except queue.Full:
+            _warn("intake backlog full; dropping an utterance")
 
 
 def _socket_is_live(path: Path) -> bool:

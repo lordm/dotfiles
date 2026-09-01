@@ -1,3 +1,4 @@
+import contextlib
 import io
 import json
 import os
@@ -585,6 +586,33 @@ def _speak_request(text: str) -> bytes:
     return json.dumps({"text": text, "pane": "%4", "kind": "response"}).encode() + b"\n"
 
 
+def _status(path) -> dict:
+    with _connect(path) as client:
+        client.sendall(b'{"cmd": "status"}\n')
+        return json.loads(client.recv(65536).decode())
+
+
+@contextlib.contextmanager
+def _serving(**kwargs):
+    """A served daemon with the collaborators a test wants to control."""
+    tmpdir = Path(tempfile.mkdtemp(prefix="ttsd-test-"))
+    path = tmpdir / "s.sock"
+    kwargs.setdefault("focus_check", lambda pane, query=None: True)
+    kwargs.setdefault("player_factory", RecordingPlayer)
+    d = Daemon(StubEngine(), Config("af_heart", 1.15, 45.0, 160, tmpdir / "muted"),
+               **kwargs)
+    thread = threading.Thread(target=d.serve, args=(path,), daemon=True)
+    thread.start()
+    assert _wait_for(lambda: ttsd._socket_is_live(path)), \
+        "daemon never listened on its socket"
+    try:
+        yield d, path
+    finally:
+        d._stop_serving.set()
+        thread.join(timeout=5)
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 class TestSocketProtocol:
     def test_a_message_is_spoken(self, served):
         d, path = served
@@ -702,6 +730,127 @@ class TestSocketProtocol:
 # ---------------------------------------------------------------------------
 # Playback that cannot start, or fails part-way.
 # ---------------------------------------------------------------------------
+
+
+class TestAcceptLoopNeverBlocks:
+    """The accept loop may not wait on a subprocess. Ever.
+
+    A hook adapter must never slow a turn down, and the thing that makes that
+    fragile is AF_UNIX: connect() to a full backlog *blocks* rather than being
+    refused, and tts/client.py allows three seconds before giving up. So an
+    accept loop parked in a stalled tmux or notify-send reaches back through
+    the backlog and into the agent. The scenario is this feature's own design
+    goal -- several unfocused background agents, all routed to notify-send.
+
+    listen(16), so these push more than sixteen connections through while the
+    decision is wedged: with the focus query on the accept thread they queue
+    behind it, and the sender is the one that pays.
+    """
+
+    def _wedge(self):
+        entered, release = threading.Event(), threading.Event()
+
+        def blocked(*args, **kwargs):
+            entered.set()
+            release.wait(10)
+            return True
+
+        return entered, release, blocked
+
+    def test_a_wedged_focus_query_does_not_reach_the_accept_loop(self):
+        entered, release, hung_focus = self._wedge()
+        with _serving(focus_check=hung_focus) as (d, path):
+            _send(path, _speak_request("First."))
+            assert entered.wait(2), "the focus check never ran"
+            try:
+                started = time.monotonic()
+                for i in range(24):
+                    _send(path, _speak_request(f"Message {i}."))
+                reply = _status(path)
+                elapsed = time.monotonic() - started
+            finally:
+                release.set()
+
+        assert elapsed < 2.0, f"24 hooks waited {elapsed:.2f}s on a wedged tmux"
+        assert reply["voice"] == "af_heart", "status was not served during the stall"
+
+    def test_a_wedged_notification_does_not_reach_the_accept_loop(self):
+        entered, release, hung_notify = self._wedge()
+        with _serving(focus_check=lambda pane, query=None: False,
+                      notifier=hung_notify) as (d, path):
+            _send(path, _speak_request("Background turn."))
+            assert entered.wait(2), "the notifier never ran"
+            try:
+                started = time.monotonic()
+                for i in range(24):
+                    _send(path, _speak_request(f"Message {i}."))
+                reply = _status(path)
+                elapsed = time.monotonic() - started
+            finally:
+                release.set()
+
+        assert elapsed < 2.0, f"24 hooks waited {elapsed:.2f}s on a wedged notify-send"
+        assert reply["voice"] == "af_heart", "status was not served during the stall"
+
+    def test_stop_is_still_instant_while_intake_is_wedged(self):
+        """`tts stop` must not queue behind a decision that cannot finish."""
+        entered, release, hung_focus = self._wedge()
+        with _serving(focus_check=hung_focus) as (d, path):
+            _send(path, _speak_request("First."))
+            assert entered.wait(2), "the focus check never ran"
+            try:
+                started = time.monotonic()
+                _send(path, b'{"cmd": "stop"}\n')
+                reply = _status(path)
+                elapsed = time.monotonic() - started
+            finally:
+                release.set()
+
+        assert elapsed < 1.0, f"stop waited {elapsed:.2f}s"
+        assert reply["speaking"] is False
+
+    def test_a_flood_is_dropped_rather_than_buffered_forever(self):
+        entered, release, hung_focus = self._wedge()
+        with _serving(focus_check=hung_focus) as (d, path):
+            _send(path, _speak_request("First."))
+            assert entered.wait(2), "the focus check never ran"
+            try:
+                for i in range(ttsd.INTAKE_BACKLOG + 20):
+                    _send(path, _speak_request(f"Message {i}."))
+                    time.sleep(0.002)  # 16-deep listen backlog, not a flood test
+                assert _wait_for(
+                    lambda: _status(path)["queued"] == ttsd.INTAKE_BACKLOG), \
+                    "the intake backlog was not bounded"
+            finally:
+                release.set()
+
+    def test_notify_does_not_wait_for_notify_send(self, monkeypatch):
+        """The desktop fallback is spawned and forgotten, output included."""
+        seen = {}
+
+        class FakeProc:
+            def wait(self, timeout=None):
+                raise AssertionError("notify() waited for notify-send")
+
+            def communicate(self, *a, **k):
+                raise AssertionError("notify() read notify-send's output")
+
+        def fake_popen(argv, **kwargs):
+            seen["argv"] = argv
+            seen["kwargs"] = kwargs
+            return FakeProc()
+
+        monkeypatch.setattr(ttsd.subprocess, "Popen", fake_popen)
+        monkeypatch.setattr(ttsd.subprocess, "run", lambda *a, **k:
+                            (_ for _ in ()).throw(AssertionError("notify() used run()")))
+
+        ttsd.notify("Claude", "a background turn finished")
+
+        assert seen["argv"][0] == "notify-send"
+        assert seen["argv"][-1] == "a background turn finished"
+        # An unread pipe fills and blocks the process we refuse to wait for.
+        assert seen["kwargs"]["stdout"] is ttsd.subprocess.DEVNULL
+        assert seen["kwargs"]["stderr"] is ttsd.subprocess.DEVNULL
 
 
 class TestPlaybackFailure:
