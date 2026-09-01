@@ -200,6 +200,24 @@ Gotchas worth knowing before changing any of this:
 - **The model download is atomic.** `scripts/setup-tts.sh` fetches each file to a
   `.part` sidecar and only `mv`s it into place on success, so a run that dies
   mid-download never leaves a truncated file that a later run mistakes for complete.
+- **paplay is retired, not killed, at the end of an utterance.** `write()` returns
+  as soon as the pipe accepts the bytes, so audio is still playing when the queue
+  drains — `_retire_playback` closes stdin and `wait()`s, on the worker thread and
+  never under the lock. Killing there instead would truncate the tail of every
+  utterance; not retiring at all (the original bug) leaves a paplay alive forever
+  holding the output sink open, which on this machine meant an audio interface
+  stuck in RUNNING and drawing power with nothing to say. `kill()` stays the
+  interruption path and must stay immediate.
+- **The socket accept loop must never wait on a subprocess.** An AF_UNIX
+  `connect()` to a full backlog blocks rather than being refused, so a stalled
+  accept loop reaches back through `listen(16)` into the agent whose hook is
+  connecting. The tmux focus query and `notify-send` therefore live on the intake
+  thread, and `notify()` is spawned and forgotten. Commands (`stop`, `toggle`) stay
+  on the accept thread on purpose — a stop queued behind an utterance is not a stop.
+- **`[events]` in `config.toml` gates the four wired events**, keyed on
+  `(source, kind)` from the hook payload. Off means neither spoken nor sent to
+  `notify-send`. Everything defaults to on, and `load_config` discards unknown or
+  non-boolean keys with a warning rather than letting a typo silence an event.
 - **Only the focused pane speaks.** The active pane of an attached tmux session
   narrates; everything else falls back to `notify-send`. Sessions with no
   `$TMUX_PANE` at all — the desktop app, editor integrations — are treated as
