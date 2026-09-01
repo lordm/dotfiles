@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+"""tts -- control the speech daemon.
+
+Usage:
+  tts say TEXT     speak something now
+  tts stop         silence immediately
+  tts toggle       mute or unmute, persists across restarts
+  tts status       report daemon state
+"""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from tts.client import build_message, send
+
+
+def main() -> int:
+    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+        print(__doc__.strip())
+        return 0
+
+    verb = sys.argv[1]
+    if verb not in ("say", "stop", "toggle", "status"):
+        print(f"unknown command: {verb}", file=sys.stderr)
+        return 2
+
+    text = " ".join(sys.argv[2:]) if verb == "say" else None
+    if verb == "say" and not text:
+        print("say needs something to say", file=sys.stderr)
+        return 2
+
+    reply = send(build_message(verb, text))
+    if verb == "status":
+        print(reply or "daemon not running")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

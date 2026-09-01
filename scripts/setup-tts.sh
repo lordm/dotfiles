@@ -50,3 +50,19 @@ PY
 
 echo
 echo "Environment ready."
+
+echo "==> Installing systemd user service"
+mkdir -p "$HOME/.config/systemd/user"
+ln -fs "$REPO/tts/tts.service" "$HOME/.config/systemd/user/tts.service"
+systemctl --user daemon-reload
+systemctl --user enable --now tts.service
+
+echo "==> Waiting for the socket"
+for _ in $(seq 1 30); do
+  [ -S "${XDG_RUNTIME_DIR:-/run/user/$UID}/tts.sock" ] && break
+  sleep 1
+done
+
+echo
+echo "Done. Try:  tts say \"text to speech is working\""
+echo "If Codex hooks were added, approve them once via /hooks in the Codex TUI."

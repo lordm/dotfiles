@@ -1,0 +1,14 @@
+[Unit]
+Description=Agent TTS daemon
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/share/tts/venv/bin/python -m tts.ttsd
+Environment=PYTHONPATH=%h/workspace/dotfiles
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
