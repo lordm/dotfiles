@@ -231,12 +231,22 @@ Manual smoke test after install: `tts say "hello"`.
 
 ## Open risks
 
-**`$TMUX_PANE` propagation.** Whether the variable survives into the hook
-process is unverified; the agent may be re-parented. This is the first thing to
-check empirically. If it does not propagate, focus arbitration needs a different
-signal — most likely the daemon correlating the hook's `cwd` and session id
-against `tmux list-panes` output. That changes the mechanism in the focus
-section, not the behavior anywhere else.
+**`$TMUX_PANE` propagation — RESOLVED 2026-09-01.** Verified empirically in a
+throwaway detached tmux session: the variable survives two levels of subprocess
+nesting (pane shell to agent to hook), so the primary focus mechanism stands and
+no `list-panes` correlation fallback is needed.
+
+The same investigation surfaced a case the design had treated as marginal: this
+machine also runs Claude Code under `claude-desktop`, entirely outside tmux.
+That is a routine path, not an edge case. The specified behavior (absent
+`$TMUX_PANE` means treat as focused and speak) covers it correctly, but it
+means desktop-app sessions always narrate regardless of what tmux is doing.
+
+**Model artifacts — VERIFIED.** `kokoro-v1.0.onnx` (325 MB) and
+`voices-v1.0.bin` (28 MB) both resolve HTTP 200 from the kokoro-onnx
+`model-files-v1.0` release. `kokoro-onnx` 0.6.1 supports Python >=3.10,<3.14 and
+`onnxruntime` 1.29.0 requires >=3.11; the system Python is 3.12.9, so both are
+satisfied.
 
 **Synthesis throughput.** The 0.3–0.5x realtime estimate for this CPU is from
 published benchmarks, not measured here. If actual throughput is worse, sentence
