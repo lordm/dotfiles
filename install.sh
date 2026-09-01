@@ -98,6 +98,12 @@ mkdir -p ~/.config
 ln -fs "$PWD/lazyvim" ~/.config/nvim   # default config; switch with `nvchad`/`lazyvim` aliases
 ln -fs "$PWD/zshrc_imi" ~/.zshrc_imi
 
+# Agent TTS (config + CLI only -- scripts/setup-tts.sh installs the model and
+# service; run it manually, it pulls ~353MB)
+mkdir -p ~/.config/tts ~/.local/bin
+ln -fs "$PWD/tts/config.toml" ~/.config/tts/config.toml
+ln -fs "$PWD/tts/tts" ~/.local/bin/tts
+
 # Ghostty
 mkdir -p ~/.config/ghostty
 cp -r ~/.config/ghostty ~/.config/ghostty_old 2>/dev/null

@@ -148,3 +148,7 @@ df_docker_image() {
 if command -v zoxide > /dev/null; then
   eval "$(zoxide init zsh)"
 fi
+
+# Agent TTS
+alias shh='tts stop'
+alias tts-off='tts toggle'

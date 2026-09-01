@@ -165,6 +165,61 @@ Gotchas worth knowing before changing any of this:
   `/etc/modprobe.d/nvidia-graphics-drivers-kms.conf`) or resume comes back with a
   corrupted display.
 
+### Agent TTS (spoken responses)
+`tts/` narrates Claude Code and Codex output through Kokoro, a local ONNX model — no
+network calls at runtime. A warm daemon (`tts/ttsd.py`) holds the model behind a Unix
+socket (`$XDG_RUNTIME_DIR/tts.sock`) so no turn pays model-load cost; hook adapters in
+`tts/hooks/` extract text from each harness's payload and hand it to `tts/client.py`'s
+`send()`, which is non-blocking by default (~18ms measured) — it autostarts the daemon
+and retries once immediately, never waits. `wait=True` exists only so the interactive
+CLI (`tts/tts`) can poll out a cold start; a hook must never pass it.
+
+Run `scripts/setup-tts.sh` manually — `install.sh` only symlinks `tts/config.toml` and
+the `tts` CLI, since setup pulls ~353MB (`kokoro-v1.0.onnx` 325MB, `voices-v1.0.bin`
+28MB) and installs `tts.service` as a systemd user unit. Measured synthesis speed on
+this machine is RTF 0.41 — comfortably faster than realtime. The daemon runs at
+roughly 578MB RSS while idle.
+
+Control it with `tts stop` (aliased `shh`), `tts toggle` (aliased `tts-off`), `tts
+status`, or the tmux binding `prefix + S`.
+
+Gotchas worth knowing before changing any of this:
+- **`tts/paths.py` is a stdlib-only leaf module.** It holds `socket_path()` and
+  `share_dir()`, pulled out of `tts/ttsd.py` so the CLI and both hook adapters never
+  transitively import numpy. They run under a bare `python3`, not the venv
+  `scripts/setup-tts.sh` builds — importing `tts.ttsd` from them (which imports
+  `tts.engine`, which imports numpy at module scope) would crash on any machine that
+  followed the documented install. Don't fold it back into `ttsd.py`.
+- **Model and venv locations honor `$XDG_DATA_HOME`**, with `$TTS_MODEL_DIR`
+  overriding just the model directory. `scripts/setup-tts.sh`, `tts/engine.py`, and
+  `tts/ttsd.py` all resolve it the same way so a bootstrap run and the running daemon
+  never disagree about where the models live.
+- **The model download is atomic.** `scripts/setup-tts.sh` fetches each file to a
+  `.part` sidecar and only `mv`s it into place on success, so a run that dies
+  mid-download never leaves a truncated file that a later run mistakes for complete.
+- **Only the focused pane speaks.** The active pane of an attached tmux session
+  narrates; everything else falls back to `notify-send`. Sessions with no
+  `$TMUX_PANE` at all — the desktop app, editor integrations — are treated as
+  focused and always speak.
+- **Terminal window focus is not checked.** Wayland has no reliable unprivileged
+  query for it, so alt-tabbing to a browser does not stop narration. This is
+  deliberate.
+- **Hook adapters exit zero on every failure path.** A dead daemon or missing model
+  must never break a turn. That also means failures are silent — debug by piping a
+  payload into the adapter by hand.
+- **Codex's `PermissionRequest` payload has no `reason` field.** The adapter keys on
+  `tool_name` instead, confirmed against the machine-generated JSON Schema fixtures
+  for `rust-v0.151.0` — codex-cli's own generated schema, not a guess from binary
+  strings. `reason` only exists on hook *output* structs, never on this input
+  payload; don't "fix" the adapter back to preferring it.
+- **Codex hooks need trusting by hash.** After changing `tts/codex-hooks.toml` and
+  re-merging, approve them again via `/hooks` in the Codex TUI.
+- **The harness configs are merged, not symlinked.** `~/.claude/settings.json` and
+  `~/.codex/config.toml` hold live machine state — including, on this machine,
+  work-project paths that must never enter this public repo — so the repo keeps the
+  canonical fragments (`tts/claude-hooks.json`, `tts/codex-hooks.toml`) and merges
+  them in by hand instead.
+
 ## Path Variables
 Key paths added in zshrc:
 - CUDA Toolkit: `/usr/local/cuda/bin`

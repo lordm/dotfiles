@@ -169,6 +169,17 @@ Low-latency guitar practice setup using Wine + yabridge + REAPER + PipeWire JACK
 
 See [NEURAL_DSP_LINUX_GUIDE.md](NEURAL_DSP_LINUX_GUIDE.md) for the complete setup guide.
 
+## Agent TTS (Spoken Responses)
+
+Spoken Claude Code and Codex responses via local Kokoro synthesis (`tts/`, see `scripts/setup-tts.sh`).
+
+A warm daemon (`tts/ttsd.py`) holds the Kokoro ONNX model behind a Unix socket — no network calls at runtime, measured RTF 0.41. Hook adapters in `tts/hooks/` extract text from each harness's payload and hand it off without blocking the agent.
+
+- **Control**: `tts stop` (aliased `shh`), `tts toggle` (aliased `tts-off`), `tts status`, or tmux `prefix + S`
+- **Setup**: `install.sh` only symlinks the config and CLI — run `scripts/setup-tts.sh` manually, it pulls ~353MB of model files and installs a systemd user service
+
+See [CLAUDE.md](CLAUDE.md) for the focus rules and other gotchas.
+
 ## Development Tools
 
 ### Version Managers
