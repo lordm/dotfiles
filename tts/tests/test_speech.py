@@ -114,3 +114,71 @@ class TestPrepare:
     def test_prepare_cleans_then_caps(self):
         text = "Fixed it.\n\n```py\na\nb\n```\n\nSee /tmp/x/y.log for detail."
         assert prepare(text) == "Fixed it. code block, 2 lines. See y.log for detail."
+
+
+class TestPathsInProse:
+    """Ensure paths are only reduced when they genuinely look like filesystem paths."""
+
+    def test_fraction_in_prose_untouched(self):
+        text = "The odds are 3/4 in favor."
+        assert clean_for_speech(text) == "The odds are 3/4 in favor."
+
+    def test_aspect_ratio_untouched(self):
+        text = "Aspect ratio 16/9 is standard."
+        assert clean_for_speech(text) == "Aspect ratio 16/9 is standard."
+
+    def test_and_or_untouched(self):
+        text = "Use flag A and/or flag B here."
+        assert clean_for_speech(text) == "Use flag A and/or flag B here."
+
+    def test_unit_abbreviation_untouched(self):
+        text = "Speed limit is 60 km/h today."
+        assert clean_for_speech(text) == "Speed limit is 60 km/h today."
+
+    def test_absolute_path_still_reduced(self):
+        """Paths with leading / should still be reduced."""
+        text = "Edited /home/marwan/workspace/dotfiles/scripts/foo.sh today."
+        assert clean_for_speech(text) == "Edited foo.sh today."
+
+    def test_relative_path_with_extension_still_reduced(self):
+        """Relative paths with file extensions should still be reduced."""
+        text = "See src/a/b.py:42 there."
+        assert clean_for_speech(text) == "See b.py line 42 there."
+
+
+class TestEmphasisBoundaries:
+    """Ensure emphasis markers are only stripped when paired, not in identifiers."""
+
+    def test_underscore_in_variable_name_preserved(self):
+        """Underscores in identifiers like my_var must be preserved."""
+        text = "Run `my_var = 1` now."
+        assert clean_for_speech(text) == "Run my_var = 1 now."
+
+    def test_underscore_in_filepath_preserved(self):
+        """Underscores in file paths must not be stripped."""
+        text = "Edited /home/user/my_file.py today."
+        assert clean_for_speech(text) == "Edited my_file.py today."
+
+    def test_asterisk_in_arithmetic_preserved(self):
+        """Asterisks used for multiplication should not be stripped."""
+        text = "The area is 3 * 4 = 12 square feet."
+        assert clean_for_speech(text) == "The area is 3 * 4 = 12 square feet."
+
+    def test_asterisk_in_glob_preserved(self):
+        """Asterisks in glob patterns should not be stripped."""
+        text = "Match files with *.py glob."
+        assert clean_for_speech(text) == "Match files with *.py glob."
+
+    def test_paired_double_asterisk_still_stripped(self):
+        """Double asterisks for bold emphasis should still be removed."""
+        text = "This is **very** important."
+        assert clean_for_speech(text) == "This is very important."
+
+    def test_paired_single_underscore_still_stripped(self):
+        """Single underscores for italic emphasis should still be removed."""
+        text = "This is _odd_."
+        assert clean_for_speech(text) == "This is odd."
+
+    def test_original_test_still_works(self):
+        """Original test from brief must still pass."""
+        assert clean_for_speech("This is **very** _odd_.") == "This is very odd."

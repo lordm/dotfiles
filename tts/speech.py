@@ -23,8 +23,12 @@ _TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
 _TABLE_SEP = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
 _HEADING = re.compile(r"^\s{0,3}#{1,6}\s+")
 _LIST_ITEM = re.compile(r"^\s*(?:[-*+]|\d+\.)\s+")
-_EMPHASIS = re.compile(r"(\*\*|\*|__|_)")
-_PATH = re.compile(r"(?<![\w/])(/?(?:[\w.-]+/)+[\w.-]+)(?::(\d+))?")
+_EMPHASIS = re.compile(
+    r"\*\*[^\*]+\*\*|__[^_]+__|(?<!\w)\*(?!\*).*?(?<!\*)\*(?!\w)|(?<!\w)_(?!_).*?(?<!_)_(?!\w)"
+)
+_PATH = re.compile(
+    r"(?<![\w/])((?:/[\w./-]*|\.[\w./-]*|[\w.-]+(?:/[\w.-]+)+\.[\w]+))(?::(\d+))?"
+)
 _SENTENCE = re.compile(r"\S.*?[.!?](?=\s|$)|\S.+$", re.DOTALL)
 
 
@@ -44,6 +48,20 @@ def _path_to_speech(match: re.Match[str]) -> str:
     basename = match.group(1).rstrip("/").split("/")[-1]
     line_no = match.group(2)
     return f"{basename} line {line_no}" if line_no else basename
+
+
+def _emphasis_replacement(match: re.Match[str]) -> str:
+    """Extract content from paired emphasis markers, leaving the content."""
+    full = match.group(0)
+    if full.startswith("**") and full.endswith("**"):
+        return full[2:-2]
+    elif full.startswith("__") and full.endswith("__"):
+        return full[2:-2]
+    elif full.startswith("*") and full.endswith("*"):
+        return full[1:-1]
+    elif full.startswith("_") and full.endswith("_"):
+        return full[1:-1]
+    return full
 
 
 def _strip_tables(text: str) -> str:
@@ -100,7 +118,7 @@ def clean_for_speech(text: str) -> str:
     text = _strip_tables(text)
     text = _terminate_structural_lines(text)
     text = _PATH.sub(_path_to_speech, text)
-    text = _EMPHASIS.sub("", text)
+    text = _EMPHASIS.sub(_emphasis_replacement, text)
 
     text = re.sub(r"\s+", " ", text).strip()
     text = re.sub(r"\.\s*\.(\s|$)", r".\1", text)
