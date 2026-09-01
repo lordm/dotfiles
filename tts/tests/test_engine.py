@@ -47,6 +47,25 @@ class TestKokoroEngineMissingModel:
                 voices_path=tmp_path / "missing-voices.bin",
             )
 
+    def test_a_missing_voices_file_is_reported_the_same_way(self, tmp_path):
+        """The two files are downloaded separately, so either can be the gap.
+
+        Checking only the model left a missing or truncated voices file to
+        surface as a kokoro_onnx traceback from inside the library, when what
+        the user needs to be told is which file is missing and which script
+        fetches it.
+        """
+        from tts.engine import KokoroEngine
+
+        model = tmp_path / "kokoro-v1.0.onnx"
+        model.write_bytes(b"not really a model, but present")
+
+        with pytest.raises(FileNotFoundError) as raised:
+            KokoroEngine(model_path=model, voices_path=tmp_path / "voices-v1.0.bin")
+
+        assert "voices" in str(raised.value)
+        assert "setup-tts.sh" in str(raised.value)
+
 
 class TestModelDirResolution:
     """MODEL_DIR/MODEL_PATH/VOICES_PATH are computed once at import time, so

@@ -94,6 +94,37 @@ class TestFocus:
         assert len(sent) == 1
         assert "codex" in sent[0][0].lower()
 
+    def test_the_notification_body_is_cleaned_like_speech(self, tmp_path):
+        """An unfocused session should not be the one that gets raw markdown.
+
+        The body is read at a glance from the corner of a screen; spending
+        that glance on fences and absolute paths is worse than spending it on
+        the prose the focused session would have heard.
+        """
+        sent = []
+        cfg = Config("af_heart", 1.15, 45.0, 160, tmp_path / "muted")
+        d = Daemon(StubEngine(), cfg,
+                   focus_check=lambda pane, query=None: False,
+                   player_factory=RecordingPlayer,
+                   notifier=lambda title, body: sent.append(body))
+        d.handle({"text": "Edited `/home/x/y/foo.sh` and **fixed** it.\n\n"
+                          "```py\nprint(1)\nprint(2)\n```\n\n"
+                          "See [the docs](https://x.com/y).",
+                  "pane": "%2", "kind": "response", "source": "claude"})
+        d.drain()
+        assert sent == ["Edited foo.sh and fixed it. code block, 2 lines. See the docs."]
+
+    def test_a_notification_body_is_capped(self, tmp_path):
+        sent = []
+        cfg = Config("af_heart", 1.15, 45.0, 160, tmp_path / "muted")
+        d = Daemon(StubEngine(), cfg,
+                   focus_check=lambda pane, query=None: False,
+                   player_factory=RecordingPlayer,
+                   notifier=lambda title, body: sent.append(body))
+        d.handle({"text": "word " * 5000, "pane": "%2", "kind": "response"})
+        d.drain()
+        assert len(sent[0]) <= 200
+
 
 class TestMute:
     def test_muted_daemon_stays_silent(self, daemon):

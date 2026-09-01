@@ -261,11 +261,26 @@ merge_claude_hooks
 merge_codex_hooks
 
 echo "==> Waiting for the socket"
+# Announcing success after this loop times out is the same silent-failure
+# class this script already fixed once for truncated downloads: the install
+# reads as complete and nothing speaks. Say which it was.
+SOCK="${XDG_RUNTIME_DIR:-/run/user/$UID}/tts.sock"
+listening=0
 for _ in $(seq 1 30); do
-  [ -S "${XDG_RUNTIME_DIR:-/run/user/$UID}/tts.sock" ] && break
+  if [ -S "$SOCK" ]; then
+      listening=1
+      break
+  fi
   sleep 1
 done
 
 echo
-echo "Done. Try:  tts say \"text to speech is working\""
+if [ "$listening" -eq 1 ]; then
+    echo "Done. Try:  tts say \"text to speech is working\""
+else
+    echo "WARNING: the daemon did not open $SOCK within 30s."
+    echo "Everything else is installed. Check:  systemctl --user status tts.service"
+    echo "                                      journalctl --user -u tts.service -n 50"
+fi
 echo "If Codex hooks were added, approve them once via /hooks in the Codex TUI."
+[ "$listening" -eq 1 ]

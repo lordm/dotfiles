@@ -39,7 +39,7 @@ import numpy as np
 from tts.engine import SAMPLE_RATE, Engine, KokoroEngine
 from tts.focus import is_focused
 from tts.paths import share_dir as _share_dir, socket_path
-from tts.speech import prepare, split_sentences
+from tts.speech import clean_for_speech, prepare, split_sentences
 
 DEFAULT_CONFIG = Path.home() / ".config/tts/config.toml"
 
@@ -406,7 +406,13 @@ class Daemon:
             pane = str(pane)
         if not self._focus_check(pane):
             source = message.get("source") or "agent"
-            self._notify(str(source).capitalize(), text.strip()[:200])
+            # Cleaned, not raw. A notification body is read, but it is read at
+            # a glance from the corner of a screen, and raw markdown spends
+            # that glance on backticks, fences and absolute paths. The same
+            # transforms that make this speakable make it skimmable, and they
+            # are pure functions sitting right here.
+            body = clean_for_speech(text[:MAX_TEXT_CHARS]).strip()
+            self._notify(str(source).capitalize(), body[:200] or text.strip()[:200])
             return
 
         spoken = prepare(text[:MAX_TEXT_CHARS], self.config.max_seconds, self.config.wpm)

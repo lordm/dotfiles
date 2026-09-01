@@ -57,10 +57,16 @@ class KokoroEngine:
         # with an actionable message, without first paying the ~2s cost of
         # importing kokoro_onnx (and without requiring kokoro_onnx to be
         # installed at all just to report that the model is missing).
-        if not model_path.exists():
-            raise FileNotFoundError(
-                f"Kokoro model missing at {model_path}. Run scripts/setup-tts.sh."
-            )
+        # Both files, not just the model: a truncated or absent voices file
+        # otherwise surfaces as a kokoro_onnx traceback from deep inside the
+        # library, where what the user needs to be told is "run the setup
+        # script". setup-tts.sh downloads them separately, so either one can be
+        # the missing half.
+        for name, path in (("model", model_path), ("voices file", voices_path)):
+            if not path.exists():
+                raise FileNotFoundError(
+                    f"Kokoro {name} missing at {path}. Run scripts/setup-tts.sh."
+                )
 
         from kokoro_onnx import Kokoro  # imported lazily: ~2s and only the daemon needs it
 
