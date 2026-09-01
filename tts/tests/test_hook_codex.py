@@ -22,6 +22,18 @@ class TestStop:
 
 
 class TestPermissionRequest:
+    """These are the task brief's originally mandated tests, kept verbatim
+    (same payloads, same assertions) -- but the brief's premise that a real
+    PermissionRequest payload carries `reason` turned out to be wrong (see
+    TestRealPayloadShape below, and the module docstring). `reason` alone
+    with no `tool_name`, as test_permission_is_announced sends, isn't a
+    shape codex-cli 0.151.0 actually produces; it now exercises this
+    adapter's reason-only *fallback* path rather than anything resembling
+    the primary/schema-shaped one. Both still pass unmodified because that
+    fallback is real, intentional behavior -- just not the common case.
+    TestRealPayloadShape covers the schema-shaped payload and, separately,
+    proves tool_name wins whenever both fields happen to be present."""
+
     def test_permission_is_announced(self):
         m = message_from_payload({
             "hook_event_name": "PermissionRequest",
@@ -247,14 +259,31 @@ class TestRealPayloadShape:
         assert m["kind"] == "permission"
         assert m["text"] == "Codex needs permission to use shell."
 
-    def test_permission_prefers_reason_when_both_reason_and_tool_name_present(self):
-        """reason is not part of the real schema, but if some future/other
-        version does send both, an explicit reason should still win over the
-        generic tool_name phrasing -- it's the more specific signal."""
+    def test_permission_prefers_tool_name_over_reason_when_both_present(self):
+        """The real schema forbids this combination outright (`reason` isn't
+        a property of the payload at all), so this is purely a defensive
+        case -- but if some other source ever sent both, tool_name must win:
+        it's the field the schema actually guarantees, reason is not. An
+        earlier version of this adapter (and this test) had that backwards,
+        checking reason first and only falling back to tool_name -- which
+        meant the one guaranteed field was demoted to a fallback that real
+        codex-cli 0.151.0 traffic would never even reach."""
         m = message_from_payload({
             "hook_event_name": "PermissionRequest",
             "reason": "run rm -rf build",
             "tool_name": "shell",
+        })
+        assert m["text"] == "Codex needs permission to use shell."
+
+    def test_permission_uses_reason_only_when_tool_name_is_absent(self):
+        """reason is not part of the real schema (see class docstring), but
+        is still tolerated as a fallback for a payload that omits
+        tool_name -- e.g. a differently-shaped source, or a future/older
+        Codex build. It must never be consulted while tool_name is present
+        (see the precedence test above)."""
+        m = message_from_payload({
+            "hook_event_name": "PermissionRequest",
+            "reason": "run rm -rf build",
         })
         assert m["text"] == "Codex needs permission: run rm -rf build"
 

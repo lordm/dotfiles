@@ -28,9 +28,11 @@ Notably there is no "reason" field on PermissionRequest -- an earlier
 binary rather than from source) turned out to conflate this *input* schema
 with the *output* schema hooks may optionally return on stdout (several of
 those output structs do have a `reason` field, for a hook that wants to
-block/deny). `tool_name` is what actually identifies the pending action, so
-this adapter prefers it once `reason` (kept only as a defensive fallback)
-comes up empty.
+block/deny). `tool_name` is what actually identifies the pending action and
+is always present per the schema's `required` list, so this adapter treats
+it as the primary signal. `reason` is checked only as a fallback for when
+`tool_name` is absent -- e.g. a differently-shaped payload from some other
+Codex build -- and never overrides a `tool_name` that's actually there.
 
 Despite that confidence, a live payload was still never observed, so every
 lookup goes through _field(), which also checks one level into any
@@ -80,19 +82,20 @@ def message_from_payload(payload: dict) -> dict | None:
         text = raw.strip() if isinstance(raw, str) else ""
         kind = "response"
     elif event == "PermissionRequest":
-        # The real payload (confirmed against codex-cli 0.151.0's own JSON
-        # Schema, see module docstring) has no "reason" field at all --
-        # "reason" is kept as a fallback in case a differently-shaped
-        # payload does carry one, but tool_name is the field that's
-        # actually always present and identifies what's being requested.
-        raw_reason = _field(payload, "reason")
-        reason = raw_reason.strip() if isinstance(raw_reason, str) else ""
-        if reason:
-            text = f"Codex needs permission: {reason}"
+        # tool_name is the guaranteed field (see module docstring: it's
+        # `required` in codex-cli 0.151.0's own JSON Schema, and "reason"
+        # isn't a property of this payload at all), so it's the primary
+        # signal. "reason" is only consulted as a fallback when tool_name
+        # is absent -- e.g. a differently-shaped payload from some other
+        # Codex build -- and never overrides a tool_name that's present.
+        raw_tool = _field(payload, "tool_name")
+        tool_name = raw_tool.strip() if isinstance(raw_tool, str) else ""
+        if tool_name:
+            text = f"Codex needs permission to use {tool_name}."
         else:
-            raw_tool = _field(payload, "tool_name")
-            tool_name = raw_tool.strip() if isinstance(raw_tool, str) else ""
-            text = f"Codex needs permission to use {tool_name}." if tool_name else "Codex needs permission."
+            raw_reason = _field(payload, "reason")
+            reason = raw_reason.strip() if isinstance(raw_reason, str) else ""
+            text = f"Codex needs permission: {reason}" if reason else "Codex needs permission."
         kind = "permission"
     else:
         return None
