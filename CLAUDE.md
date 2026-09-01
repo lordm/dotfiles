@@ -177,8 +177,10 @@ CLI (`tts/tts`) can poll out a cold start; a hook must never pass it.
 Run `scripts/setup-tts.sh` manually — `install.sh` only symlinks `tts/config.toml` and
 the `tts` CLI, since setup pulls ~353MB (`kokoro-v1.0.onnx` 325MB, `voices-v1.0.bin`
 28MB) and installs `tts.service` as a systemd user unit. Measured synthesis speed on
-this machine is RTF 0.41 — comfortably faster than realtime. The daemon runs at
-roughly 578MB RSS while idle.
+this machine is RTF 0.41 — comfortably faster than realtime. The daemon holds steady
+at roughly 830MB RSS once it has synthesized at least once; a reading taken right
+after the service starts (before the ONNX session has actually run) reads far lower
+and is not the number to trust.
 
 Control it with `tts stop` (aliased `shh`), `tts toggle` (aliased `tts-off`), `tts
 status`, or the tmux binding `prefix + S`.

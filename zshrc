@@ -150,5 +150,11 @@ if command -v zoxide > /dev/null; then
 fi
 
 # Agent TTS
+# ~/.local/bin holds the `tts` CLI (see install.sh); guard against duplicating
+# a PATH entry the user may already have added themselves.
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) ;;
+  *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
 alias shh='tts stop'
 alias tts-off='tts toggle'
