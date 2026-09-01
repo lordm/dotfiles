@@ -1,2 +1,5 @@
 vim/plugged/*
 fonts/*
+
+# Python bytecode (tts/)
+__pycache__/
