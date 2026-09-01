@@ -177,6 +177,7 @@ A warm daemon (`tts/ttsd.py`) holds the Kokoro ONNX model behind a Unix socket �
 
 - **Control**: `tts stop` (aliased `shh`), `tts toggle` (aliased `tts-off`), `tts status`, or tmux `prefix + S`
 - **Setup**: `install.sh` only symlinks the config and CLI — run `scripts/setup-tts.sh` manually, it pulls ~353MB of model files and installs a systemd user service
+- **Hooks**: the same script merges `tts/claude-hooks.json` into `~/.claude/settings.json` and `tts/codex-hooks.toml` into `~/.codex/config.toml` — backed up first, idempotent on a re-run, and never replacing a hook you already had. Codex additionally needs the hooks approved once via `/hooks` in its TUI
 
 See [CLAUDE.md](CLAUDE.md) for the focus rules and other gotchas.
 

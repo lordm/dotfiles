@@ -176,7 +176,8 @@ CLI (`tts/tts`) can poll out a cold start; a hook must never pass it.
 
 Run `scripts/setup-tts.sh` manually — `install.sh` only symlinks `tts/config.toml` and
 the `tts` CLI, since setup pulls ~353MB (`kokoro-v1.0.onnx` 325MB, `voices-v1.0.bin`
-28MB) and installs `tts.service` as a systemd user unit. Measured synthesis speed on
+28MB), installs `tts.service` as a systemd user unit, and merges the hook fragments
+into `~/.claude/settings.json` and `~/.codex/config.toml` (see the gotcha below). Measured synthesis speed on
 this machine is RTF 0.41 — comfortably faster than realtime. The daemon holds steady
 at roughly 830MB RSS once it has synthesized at least once; a reading taken right
 after the service starts (before the ONNX session has actually run) reads far lower
@@ -219,8 +220,15 @@ Gotchas worth knowing before changing any of this:
 - **The harness configs are merged, not symlinked.** `~/.claude/settings.json` and
   `~/.codex/config.toml` hold live machine state — including, on this machine,
   work-project paths that must never enter this public repo — so the repo keeps the
-  canonical fragments (`tts/claude-hooks.json`, `tts/codex-hooks.toml`) and merges
-  them in by hand instead.
+  canonical fragments (`tts/claude-hooks.json`, `tts/codex-hooks.toml`) and
+  `scripts/setup-tts.sh` merges them in: `jq` keyed on the hook command for the
+  JSON, a `# >>> agent-tts >>>` marked block for the TOML. Both back the file up
+  first, both parse the result before letting it land, and both are no-ops on a
+  re-run — a hook is identified by its command string, so nothing is ever
+  duplicated and nothing the user configured themselves is replaced. Sourcing the
+  script with `TTS_SETUP_LIB=1` defines the merge helpers without running the
+  install, which is how `tts/tests/test_setup_hooks.py` exercises them against a
+  scratch `HOME`.
 
 ## Path Variables
 Key paths added in zshrc:
