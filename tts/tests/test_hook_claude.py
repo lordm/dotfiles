@@ -230,6 +230,22 @@ class TestMainNeverRaises:
         monkeypatch.setattr(sys, "stdin", io.StringIO("[1, 2, 3]"))
         assert claude_mod.main() == 0
 
+    def test_main_exits_zero_when_stdin_read_raises_oserror(self, monkeypatch):
+        """json.load(sys.stdin) calls sys.stdin.read() internally, so a stdin
+        that raises OSError (broken pipe, bad fd, EIO -- all plausible if a
+        dispatcher tears down the hook's stdin mid-read) must not escape
+        main() as an uncaught exception. A narrower except around only
+        json.load() that lists (JSONDecodeError, ValueError) would miss
+        this."""
+        from tts.hooks import claude as claude_mod
+
+        class ExplodingStdin:
+            def read(self, *a, **k):
+                raise OSError("broken pipe")
+
+        monkeypatch.setattr(sys, "stdin", ExplodingStdin())
+        assert claude_mod.main() == 0
+
     def test_main_exits_zero_when_helper_raises(self, monkeypatch):
         """Defense in depth: even if a future change reintroduces a bug in
         message_from_payload, main() must still exit 0 rather than crash."""

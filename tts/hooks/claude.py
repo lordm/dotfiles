@@ -98,11 +98,14 @@ def message_from_payload(payload: dict) -> dict | None:
 
 
 def main() -> int:
+    # One try around the whole body, not one around json.load() and a second
+    # around the rest: json.load() calls sys.stdin.read() internally, and
+    # that can raise OSError (broken pipe, bad fd, EIO) just as easily as
+    # json.JSONDecodeError -- a narrower catch here would let a dispatcher
+    # tearing down the hook's stdin mid-read escape as an uncaught exception,
+    # exactly the "exit 0 on every failure path" promise this module makes.
     try:
         payload = json.load(sys.stdin)
-    except (json.JSONDecodeError, ValueError):
-        return 0
-    try:
         message = message_from_payload(payload)
         if message:
             send(message)
