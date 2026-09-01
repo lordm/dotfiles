@@ -149,6 +149,88 @@ class TestInterruption:
         assert d.status()["speaking"] is False
 
 
+class TestEventFlags:
+    """config.toml's [events] table, which the spec promises actually works.
+
+    "Every value is overridable there without touching code" -- so a flag that
+    parses, validates and then does nothing is the one outcome that must not
+    ship. A disabled event produces no speech *and* no notification: turning it
+    off means being left alone, not being nagged by the desktop instead.
+    """
+
+    def _daemon(self, tmp_path, events, focused=True):
+        self.notifications = []
+        cfg = Config("af_heart", 1.15, 45.0, 160, tmp_path / "muted", events=events)
+        return Daemon(StubEngine(), cfg,
+                      focus_check=lambda p, query=None: focused,
+                      player_factory=RecordingPlayer,
+                      notifier=lambda title, body: self.notifications.append(body))
+
+    @pytest.mark.parametrize("source,kind,flag", [
+        ("claude", "response", "claude_stop"),
+        ("claude", "permission", "claude_notification"),
+        ("codex", "response", "codex_stop"),
+        ("codex", "permission", "codex_permission"),
+    ])
+    def test_a_disabled_event_is_silent(self, tmp_path, source, kind, flag):
+        d = self._daemon(tmp_path, {flag: False})
+        d.handle({"text": "Something happened.", "pane": "%4",
+                  "source": source, "kind": kind})
+        d.drain()
+        assert d.engine.calls == []
+
+    @pytest.mark.parametrize("source,kind,flag", [
+        ("claude", "response", "claude_stop"),
+        ("claude", "permission", "claude_notification"),
+        ("codex", "response", "codex_stop"),
+        ("codex", "permission", "codex_permission"),
+    ])
+    def test_an_enabled_event_still_speaks(self, tmp_path, source, kind, flag):
+        d = self._daemon(tmp_path, {flag: True})
+        d.handle({"text": "Something happened.", "pane": "%4",
+                  "source": source, "kind": kind})
+        d.drain()
+        assert d.engine.calls == ["Something happened."]
+
+    def _say(self, daemon, text, source, kind):
+        # Drained one at a time: a later utterance supersedes an earlier one,
+        # which would hide the flag under the interruption rule.
+        daemon.handle({"text": text, "pane": "%4", "source": source, "kind": kind})
+        daemon.drain()
+
+    def test_disabling_one_event_leaves_the_others_alone(self, tmp_path):
+        d = self._daemon(tmp_path, {"claude_notification": False})
+        self._say(d, "Turn finished.", "claude", "response")
+        self._say(d, "Permission needed.", "claude", "permission")
+        self._say(d, "Codex asks.", "codex", "permission")
+        assert d.engine.calls == ["Turn finished.", "Codex asks."]
+
+    def test_a_disabled_event_does_not_fall_back_to_a_notification(self, tmp_path):
+        d = self._daemon(tmp_path, {"codex_stop": False}, focused=False)
+        d.handle({"text": "Background turn.", "pane": "%9",
+                  "source": "codex", "kind": "response"})
+        d.drain()
+        assert self.notifications == []
+        assert d.engine.calls == []
+
+    @pytest.mark.parametrize("events", [None, {}, {"codex_stop": False}])
+    def test_absent_flags_default_to_enabled(self, tmp_path, events):
+        d = self._daemon(tmp_path, events)
+        d.handle({"text": "Turn finished.", "pane": "%4",
+                  "source": "claude", "kind": "response"})
+        d.drain()
+        assert d.engine.calls == ["Turn finished."]
+
+    def test_an_unrecognised_pairing_is_not_silenced(self, tmp_path):
+        """Only the four wired events are configurable; anything else speaks."""
+        d = self._daemon(tmp_path, {"claude_stop": False})
+        d.handle({"text": "From the CLI.", "pane": "%4"})
+        d.drain()
+        self._say(d, "Some other harness.", "aider", "response")
+        self._say(d, "Odd shape.", ["claude"], "response")
+        assert d.engine.calls == ["From the CLI.", "Some other harness.", "Odd shape."]
+
+
 class TestStatus:
     def test_status_reports_shape(self, daemon):
         d, _ = daemon
@@ -473,7 +555,12 @@ def served():
                player_factory=lambda: player)
     thread = threading.Thread(target=d.serve, args=(path,), daemon=True)
     thread.start()
-    assert _wait_for(path.exists), "daemon never bound its socket"
+    # Wait for something to be *accepting*, not merely for the path to appear:
+    # bind() creates the file and listen() comes after it, so a connect landing
+    # in between is refused. That window is narrow enough to pass hundreds of
+    # runs and then fail once under load.
+    assert _wait_for(lambda: ttsd._socket_is_live(path)), \
+        "daemon never listened on its socket"
     try:
         yield d, path
     finally:
@@ -872,6 +959,27 @@ class TestLoadConfig:
         path = tmp_path / "config.toml"
         path.write_text('events = "yes"\n')
         assert load_config(path).events == {}
+
+    def test_non_boolean_and_unknown_flags_are_rejected_at_startup(self, tmp_path, capsys):
+        """A flag that is silently ignored is worse than one that is refused.
+
+        `codex_permission = "no"` reads as off and is truthy; a typo'd key
+        reads as off and matches nothing. Either would leave the user thinking
+        they had silenced an event while the daemon kept speaking.
+        """
+        path = tmp_path / "config.toml"
+        path.write_text('[events]\ncodex_permission = "no"\n'
+                        'claude_stopp = false\nclaude_stop = false\n')
+        cfg = load_config(path)
+        assert cfg.events == {"claude_stop": False}
+        warnings = capsys.readouterr().err
+        assert "codex_permission" in warnings
+        assert "claude_stopp" in warnings
+
+    def test_the_shipped_config_only_names_flags_the_daemon_knows(self):
+        """tts/config.toml is the documentation for this table."""
+        shipped = load_config(Path(__file__).resolve().parents[2] / "tts/config.toml")
+        assert set(shipped.events) == set(ttsd.EVENT_FLAGS.values())
 
     def test_muted_flag_follows_xdg_data_home(self, tmp_path, monkeypatch):
         monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "share"))

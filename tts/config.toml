@@ -5,8 +5,11 @@ speed = 1.15
 max_seconds = 45.0        # spoken length cap before "continues on screen"
 wpm = 160                 # rate used to estimate duration, not to control it
 
+# Per-event switches, named after the harness events they gate. false means
+# neither spoken nor sent to notify-send: off is off, not "nag me instead".
+# Restart the daemon after editing (`systemctl --user restart tts.service`).
 [events]
-claude_stop = true
-claude_notification = true
-codex_stop = true
-codex_permission = true
+claude_stop = true          # Claude Code finished a turn
+claude_notification = true  # Claude Code needs permission or input
+codex_stop = true           # Codex finished a turn
+codex_permission = true     # Codex needs approval

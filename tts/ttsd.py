@@ -73,6 +73,18 @@ _ACCEPT_POLL = 0.5
 # tests use it; the real daemon runs until the process dies.
 _STOP = object()
 
+# Which [events] flag in config.toml governs each (source, kind) pair the hook
+# adapters can send. The names are the harness's own event names rather than
+# this daemon's vocabulary, because that is what the user is turning off: the
+# Claude Stop hook, the Claude Notification hook, and Codex's two. A pair with
+# no flag here is not configurable and always speaks.
+EVENT_FLAGS = {
+    ("claude", "response"): "claude_stop",
+    ("claude", "permission"): "claude_notification",
+    ("codex", "response"): "codex_stop",
+    ("codex", "permission"): "codex_permission",
+}
+
 
 def _warn(message: str) -> None:
     print(f"ttsd: {message}", file=sys.stderr, flush=True)
@@ -129,6 +141,16 @@ def load_config(path: Path | None = None) -> Config:
     if not isinstance(events, dict):
         _warn("ignoring invalid [events] table in config")
         events = {}
+    # Only booleans mean anything here, and a flag that is silently ignored is
+    # worse than one that is loudly rejected: the user turns an event off, the
+    # daemon keeps speaking, and nothing says why. Rejected once at startup
+    # rather than per message.
+    for name in [k for k, v in events.items() if not isinstance(v, bool)]:
+        _warn(f"ignoring non-boolean {name!r} in [events]; expected true or false")
+        del events[name]
+    for name in [k for k in events if k not in EVENT_FLAGS.values()]:
+        _warn(f"ignoring unknown {name!r} in [events]")
+        del events[name]
 
     return Config(
         voice=_coerce(data, "voice", _as_voice, "af_heart"),
@@ -312,6 +334,22 @@ class Daemon:
 
     # ---- message handling --------------------------------------------
 
+    def _event_enabled(self, source, kind) -> bool:
+        """Is this (source, kind) turned on in config.toml's [events] table?
+
+        Enabled unless the file says otherwise: an absent flag, an absent
+        table, and a pair that has no flag at all all mean "speak". Turning
+        something off is the deliberate act, and it should not be possible to
+        lose narration by mistyping a key -- load_config discards anything it
+        does not recognise, so an unknown name never silences an event.
+        """
+        if not isinstance(source, str) or not isinstance(kind, str):
+            return True  # unattributed message: not something the table covers
+        flag = EVENT_FLAGS.get((source, kind))
+        if flag is None:
+            return True
+        return (self.config.events or {}).get(flag, True)
+
     def handle(self, message: dict) -> None:
         if not isinstance(message, dict):
             return  # arrived over a socket: assume nothing about its shape
@@ -333,6 +371,8 @@ class Daemon:
         text = message.get("text", "")
         if not isinstance(text, str) or not text.strip():
             return
+        if not self._event_enabled(message.get("source"), message.get("kind")):
+            return  # turned off in config.toml: no speech, and no notification
         if self.muted:
             return
 
