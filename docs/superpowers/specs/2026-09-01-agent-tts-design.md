@@ -60,7 +60,8 @@ New top-level `tts/`, matching the existing per-tool convention (`nvim/`,
 | `tts/ttsd.py` | Daemon: model, playback queue, socket server |
 | `tts/speech.py` | Response text to speakable text. Pure functions |
 | `tts/focus.py` | tmux focus arbitration. Pure functions |
-| `tts/tts` | CLI client: `say`, `stop`, `toggle`, `status` |
+| `tts/client.py` | Socket transport, shared by the CLI and both hook adapters |
+| `tts/tts` | CLI entry point: `say`, `stop`, `toggle`, `status` |
 | `tts/hooks/claude.py` | Claude Code stdin-JSON adapter |
 | `tts/hooks/codex.py` | Codex stdin-JSON adapter |
 | `tts/claude-hooks.json` | Version-controlled Claude settings fragment |
