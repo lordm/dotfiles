@@ -59,6 +59,13 @@ MAX_TEXT_CHARS = 20_000
 # or a hostile one, and either way must not grow the daemon's memory.
 MAX_MESSAGE_BYTES = 1 << 20
 
+# How long to wait for paplay to exit once its stdin has been closed. Reaching
+# this means the sink is wedged, not that the audio was long: at retirement the
+# only sound left is what the pipe and PulseAudio still hold, a couple of
+# seconds at most. The bound exists so a stuck sink cannot park the worker
+# thread forever.
+DRAIN_TIMEOUT = 30.0
+
 # Wakeup interval for the accept loop, so serve() can notice a shutdown request.
 _ACCEPT_POLL = 0.5
 
@@ -161,8 +168,34 @@ class PaplayPlayer:
         try:
             self._proc.stdin.write(pcm)
             self._proc.stdin.flush()
-        except (BrokenPipeError, ValueError, OSError):
+        except (BrokenPipeError, ValueError):
             pass  # killed mid-write by an interruption; expected
+        # Any other OSError is a player failing for a reason of its own, and
+        # is deliberately not caught: swallowing it loses the rest of the
+        # utterance in silence, where letting it out retires the broken player
+        # and says so.
+
+    def close(self) -> None:
+        """Retire at the end of an utterance: stop feeding, then let it finish.
+
+        write() returns as soon as the pipe accepts the bytes, so paplay is
+        still playing when the last sentence has been handed over. Closing
+        stdin is its EOF, and wait() blocks until it has played what it holds
+        -- which is exactly why this runs on the worker thread and never under
+        the lock. kill() is the opposite path: immediate, and lossy on purpose.
+        """
+        try:
+            if self._proc.stdin:
+                self._proc.stdin.close()  # write() flushes, so this cannot block
+        except (OSError, ValueError):
+            pass  # already dead, or already closed
+        try:
+            self._proc.wait(timeout=DRAIN_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            _warn("paplay did not exit after its input closed; killing it")
+            self.kill()
+        except (OSError, ValueError):
+            pass
 
     def kill(self) -> None:
         # Kill before closing stdin, not after. close() flushes, and flushing a
@@ -183,31 +216,45 @@ class PaplayPlayer:
 class _Playback:
     """One player instance, bound to the utterance that created it.
 
-    kill() is terminal and never blocks. It has to be: the socket thread calls
-    it while the worker may be parked inside write(), and killing paplay is
-    precisely what unblocks that write. So the flag is set before the process
-    is killed, and a write that arrives afterwards is dropped rather than
-    delivered — a superseded utterance cannot become audible even if the worker
-    had already decided to write it.
+    There are two ways out and the difference is the whole point. kill() is
+    terminal and never blocks: the socket thread calls it while the worker may
+    be parked inside write(), and killing paplay is precisely what unblocks
+    that write. retire() is the end-of-utterance path and does block, on the
+    worker thread, until the sound already handed to paplay has finished.
+
+    Either way `done` is set before the process is touched, so a write that
+    arrives afterwards is dropped rather than delivered — a superseded
+    utterance cannot become audible even if the worker had already decided to
+    write it. kill() stays available after retire() has started, because an
+    interruption landing mid-drain must still cut the audio short, and killing
+    the process is what ends the wait inside retire().
     """
 
-    __slots__ = ("player", "generation", "killed")
+    __slots__ = ("player", "generation", "done", "killed")
 
     def __init__(self, player, generation: int) -> None:
         self.player = player
         self.generation = generation
-        self.killed = False
+        self.done = False  # no further writes may reach the player
+        self.killed = False  # kill() has already run
 
     def write(self, samples, rate) -> None:
-        if self.killed:
+        if self.done:
             return
         self.player.write(samples, rate)
 
     def kill(self) -> None:
+        self.done = True
         if self.killed:
             return
         self.killed = True
         self.player.kill()
+
+    def retire(self) -> None:
+        if self.done:
+            return  # already killed; there is nothing left to drain
+        self.done = True
+        self.player.close()
 
 
 class Daemon:
@@ -226,6 +273,7 @@ class Daemon:
         self._notify = notifier
         self._work: queue.Queue = queue.Queue()
         self._playback: _Playback | None = None
+        self._retiring: _Playback | None = None
         self._speaking = False
         self._generation = 0
         self._lock = threading.Lock()
@@ -314,10 +362,16 @@ class Daemon:
         with self._lock:
             self._generation += 1
             playback, self._playback = self._playback, None
+            retiring, self._retiring = self._retiring, None
             self._speaking = False
         self._drop_queued()
-        if playback is not None:
-            playback.kill()  # outside the lock; kill must never wait on one
+        # Outside the lock; kill must never wait on one. The retiring player is
+        # killed too: an interruption that arrives while the tail of the last
+        # utterance is still draining has to cut it off, and this is also what
+        # releases the worker from the wait inside _retire_playback.
+        for victim in (playback, retiring):
+            if victim is not None:
+                victim.kill()
 
     def _drop_queued(self) -> None:
         while True:
@@ -383,6 +437,37 @@ class Daemon:
             self._speaking = False
         playback.kill()
 
+    def _retire_playback(self) -> None:
+        """Let the current player finish its audio and exit, then forget it.
+
+        Called from the worker thread when the queue drains. Without this the
+        paplay process installed by the first utterance lives forever: nothing
+        else clears self._playback, so it holds the output sink open — and an
+        open sink is a device that never suspends and a laptop that never stops
+        drawing power for it.
+
+        Killing here would be wrong. write() returns as soon as the pipe
+        accepts the bytes, so audio is still playing when the queue empties;
+        cutting it off would truncate the tail of every utterance. So this
+        closes stdin and waits, which is slow by definition and therefore never
+        runs under the lock. The player moves to _retiring first, where
+        stop_speaking() can still find and kill it: an interruption must stay
+        instant even while the previous utterance is draining.
+        """
+        with self._lock:
+            playback, self._playback = self._playback, None
+            if playback is None:
+                self._speaking = False
+                return
+            self._retiring = playback
+        try:
+            playback.retire()
+        finally:
+            with self._lock:
+                if self._retiring is playback:
+                    self._retiring = None
+                    self._speaking = False
+
     def _speak_one(self, generation: int, sentence: str) -> None:
         with self._lock:
             if generation != self._generation:
@@ -401,7 +486,14 @@ class Daemon:
             self._discard_playback(generation)
 
     def drain(self) -> None:
-        """Process everything queued. Used by tests; run_worker is the real path."""
+        """Process everything queued. Used by tests; run_worker is the real path.
+
+        Deliberately does not retire the player the way run_worker does: this
+        is the synchronous path, and several tests interrupt playback after
+        draining, which needs a player still installed to interrupt. Retirement
+        is a property of the worker loop's idle transition and is tested there,
+        on a real thread.
+        """
         while True:
             try:
                 item = self._work.get_nowait()
@@ -417,11 +509,13 @@ class Daemon:
         while True:
             item = self._work.get()
             if item is _STOP:
+                # Shutting down: cut the audio rather than drain it, so a
+                # stopping daemon never leaves a paplay behind it.
+                self.stop_speaking()
                 return
             self._speak_one_safely(*item)
-            with self._lock:
-                if self._work.empty():
-                    self._speaking = False
+            if self._work.empty():
+                self._retire_playback()
 
     # ---- socket ------------------------------------------------------
 

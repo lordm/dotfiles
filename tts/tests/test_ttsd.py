@@ -22,10 +22,13 @@ class RecordingPlayer:
     def __init__(self):
         self.written = []
         self.killed = 0
+        self.closed = 0
     def write(self, samples, rate):
         self.written.append(len(samples))
     def kill(self):
         self.killed += 1
+    def close(self):
+        self.closed += 1
 
 
 @pytest.fixture
@@ -183,14 +186,18 @@ class SignallingPlayer:
     unblocks it.
     """
 
-    def __init__(self, block_write=False):
+    def __init__(self, block_write=False, block_close=False):
         self.written = []
         self.killed = 0
+        self.closed = 0
         self.writes_after_kill = 0
         self.wrote = threading.Event()
         self.entered_write = threading.Event()
+        self.entered_close = threading.Event()
         self._block_write = block_write
         self._release_write = threading.Event()
+        self._block_close = block_close
+        self.release_close = threading.Event()
 
     def write(self, samples, rate):
         if self.killed:
@@ -205,6 +212,15 @@ class SignallingPlayer:
     def kill(self):
         self.killed += 1
         self._release_write.set()  # a killed paplay never blocks a writer again
+        self.release_close.set()  # ...and never keeps a retirement waiting either
+
+    def close(self):
+        # A real close() blocks until paplay has played out what it already
+        # holds, which is why retirement runs on the worker thread.
+        self.entered_close.set()
+        if self._block_close:
+            self.release_close.wait(5)
+        self.closed += 1
 
 
 class BlockingFactory:
@@ -341,10 +357,99 @@ class TestConcurrentPlayerLifecycle:
         time.sleep(0.2)
 
         assert d.engine.calls[-1] == "Message number 39."
-        # Every player but the survivor was silenced, so only one can still be
-        # making sound.
-        alive = [p for p in players if not p.killed]
-        assert len(alive) <= 1, "more than one player left running"
+
+        # A player is still able to make sound unless it was killed by an
+        # interruption or retired at the end of its utterance. Counting kills
+        # alone left room for the leak this now rules out: a paplay installed
+        # forever is "not killed" and was passing as the one legitimate
+        # survivor. Once everything has settled, none of them is sounding.
+        def still_sounding():
+            return [p for p in players if not (p.killed or p.closed)]
+
+        assert len(still_sounding()) <= 1, "more than one player left running"
+        assert _wait_for(lambda: not still_sounding(), timeout=3), \
+            f"{len(still_sounding())} players left running"
+
+
+class TestPlayerRetirement:
+    """paplay must not outlive the utterance that spawned it.
+
+    A player left installed keeps the output sink open forever: on this machine
+    that was one paplay alive for minutes with nothing to say, holding an audio
+    interface in RUNNING while every other sink on the box was SUSPENDED.
+    """
+
+    def _daemon(self, tmp_path, **player_kwargs):
+        players = []
+
+        def factory():
+            players.append(SignallingPlayer(**player_kwargs))
+            return players[-1]
+
+        d = Daemon(StubEngine(), _config(tmp_path),
+                   focus_check=lambda p, query=None: True,
+                   player_factory=factory)
+        _worker(d)
+        return d, players
+
+    def test_player_is_retired_when_the_queue_drains(self, tmp_path):
+        d, players = self._daemon(tmp_path)
+
+        d.handle({"text": "One. Two. Three.", "pane": "%4", "kind": "response"})
+        assert _wait_for(lambda: players), "no player was ever created"
+        assert _wait_for(lambda: players[0].closed == 1, timeout=3), \
+            "the player was still installed after everything had been spoken"
+        assert players[0].killed == 0, \
+            "a finished utterance was cut short instead of being drained"
+        assert len(players[0].written) == 3
+        assert d.status()["speaking"] is False
+
+    def test_a_later_utterance_gets_its_own_player(self, tmp_path):
+        """The retired player must be forgotten, not reused.
+
+        A closed paplay cannot accept audio, so reinstalling it would lose the
+        next utterance entirely.
+        """
+        d, players = self._daemon(tmp_path)
+
+        d.handle({"text": "First.", "pane": "%4", "kind": "response"})
+        assert _wait_for(lambda: players and players[0].closed == 1, timeout=3)
+
+        d.handle({"text": "Second.", "pane": "%4", "kind": "response"})
+        assert _wait_for(lambda: len(players) == 2, timeout=3), \
+            "the second utterance reused a retired player"
+        assert players[1].wrote.wait(2)
+        assert _wait_for(lambda: players[1].closed == 1, timeout=3)
+
+    def test_speaking_stays_true_until_the_audio_has_drained(self, tmp_path):
+        """status() must not claim silence while paplay is still playing."""
+        d, players = self._daemon(tmp_path, block_close=True)
+
+        d.handle({"text": "Still playing.", "pane": "%4", "kind": "response"})
+        assert _wait_for(lambda: players), "no player was ever created"
+        assert players[0].entered_close.wait(2), "the player was never retired"
+        assert d.status()["speaking"] is True, \
+            "reported silence while the audio was still draining"
+
+        players[0].release_close.set()
+        assert _wait_for(lambda: d.status()["speaking"] is False), \
+            "still reported speaking after the audio had drained"
+
+    def test_stop_during_the_drain_stays_instant(self, tmp_path):
+        """An interruption must not queue behind the tail of the last utterance."""
+        d, players = self._daemon(tmp_path, block_close=True)
+
+        d.handle({"text": "Cut me off.", "pane": "%4", "kind": "response"})
+        assert _wait_for(lambda: players), "no player was ever created"
+        assert players[0].entered_close.wait(2), "the player was never retired"
+
+        started = time.monotonic()
+        d.stop_speaking()
+        elapsed = time.monotonic() - started
+
+        assert elapsed < 0.5, f"stop waited {elapsed:.2f}s on draining audio"
+        assert players[0].killed == 1, "the retiring player was not killed"
+        assert d.status()["speaking"] is False
 
 
 # ---------------------------------------------------------------------------
