@@ -740,6 +740,96 @@ class TestPaplayPlayer:
         monkeypatch.setattr(ttsd.subprocess, "Popen", lambda *a, **k: FakeProc())
         ttsd.PaplayPlayer().kill()  # must not raise
 
+    def test_write_swallows_only_what_an_interruption_produces(self, monkeypatch):
+        """A player dying for its own reason must not vanish into a `pass`.
+
+        BrokenPipeError and ValueError are what killing paplay mid-write looks
+        like and are expected. Anything else is a real failure, and letting it
+        out is what retires the broken player instead of losing the rest of the
+        utterance in silence.
+        """
+        class FailingStdin:
+            def __init__(self, error):
+                self.error = error
+
+            def write(self, data):
+                raise self.error
+
+            def flush(self):
+                pass
+
+        class FakeProc:
+            def __init__(self, error):
+                self.stdin = FailingStdin(error)
+
+        samples = np.zeros(4, dtype=np.float32)
+
+        for expected in (BrokenPipeError(), ValueError()):
+            monkeypatch.setattr(ttsd.subprocess, "Popen",
+                                lambda *a, e=expected, **k: FakeProc(e))
+            ttsd.PaplayPlayer().write(samples, 24000)  # must not raise
+
+        monkeypatch.setattr(ttsd.subprocess, "Popen",
+                            lambda *a, **k: FakeProc(OSError(5, "Input/output error")))
+        with pytest.raises(OSError):
+            ttsd.PaplayPlayer().write(samples, 24000)
+
+    def test_close_closes_stdin_and_then_waits_for_the_audio(self, monkeypatch):
+        """The retirement path: paplay is still playing when the queue empties."""
+        order = []
+
+        class RecordingStdin:
+            def close(self):
+                order.append("close")
+
+        class FakeProc:
+            stdin = RecordingStdin()
+
+            def wait(self, timeout=None):
+                order.append(("wait", timeout))
+
+            def kill(self):
+                order.append("kill")
+
+        monkeypatch.setattr(ttsd.subprocess, "Popen", lambda *a, **k: FakeProc())
+        ttsd.PaplayPlayer().close()
+        assert order == ["close", ("wait", ttsd.DRAIN_TIMEOUT)]
+
+    def test_close_kills_a_paplay_that_never_exits(self, monkeypatch):
+        """A wedged sink must not park the worker thread forever."""
+        order = []
+
+        class FakeProc:
+            stdin = None
+
+            def wait(self, timeout=None):
+                order.append("wait")
+                raise ttsd.subprocess.TimeoutExpired("paplay", timeout)
+
+            def kill(self):
+                order.append("kill")
+
+        monkeypatch.setattr(ttsd.subprocess, "Popen", lambda *a, **k: FakeProc())
+        ttsd.PaplayPlayer().close()
+        assert order == ["wait", "kill"]
+
+    def test_close_tolerates_a_process_that_is_already_gone(self, monkeypatch):
+        class DeadStdin:
+            def close(self):
+                raise BrokenPipeError()
+
+        class FakeProc:
+            stdin = DeadStdin()
+
+            def wait(self, timeout=None):
+                return -9
+
+            def kill(self):
+                pass
+
+        monkeypatch.setattr(ttsd.subprocess, "Popen", lambda *a, **k: FakeProc())
+        ttsd.PaplayPlayer().close()  # must not raise
+
 
 # ---------------------------------------------------------------------------
 # Configuration and paths.
