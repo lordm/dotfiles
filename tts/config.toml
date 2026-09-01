@@ -1,0 +1,12 @@
+# Symlinked to ~/.config/tts/config.toml by install.sh.
+
+voice = "af_heart"        # `python -c "from kokoro_onnx import Kokoro; print(Kokoro(...).get_voices())"` to list
+speed = 1.15
+max_seconds = 45.0        # spoken length cap before "continues on screen"
+wpm = 160                 # rate used to estimate duration, not to control it
+
+[events]
+claude_stop = true
+claude_notification = true
+codex_stop = true
+codex_permission = true
