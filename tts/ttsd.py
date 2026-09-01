@@ -18,7 +18,6 @@ flag. See _claim_playback for the one subtle consequence.
 from __future__ import annotations
 
 import json
-import os
 import queue
 import socket
 import subprocess
@@ -32,6 +31,7 @@ import numpy as np
 
 from tts.engine import SAMPLE_RATE, Engine, KokoroEngine
 from tts.focus import is_focused
+from tts.paths import share_dir as _share_dir, socket_path
 from tts.speech import prepare, split_sentences
 
 DEFAULT_CONFIG = Path.home() / ".config/tts/config.toml"
@@ -65,17 +65,6 @@ _ACCEPT_POLL = 0.5
 # Private sentinel: putting it on the queue retires the worker thread. Only
 # tests use it; the real daemon runs until the process dies.
 _STOP = object()
-
-
-def _share_dir() -> Path:
-    """Where per-user state lives.
-
-    Mirrors tts.engine._compute_model_dir() and scripts/setup-tts.sh so the
-    bootstrap, the engine and the daemon never disagree about $XDG_DATA_HOME.
-    The `or` (rather than a dict default) matters: XDG_DATA_HOME set to an
-    empty string is common in stripped environments, and Path("") is ".".
-    """
-    return Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local/share")) / "tts"
 
 
 def _warn(message: str) -> None:
@@ -142,11 +131,6 @@ def load_config(path: Path | None = None) -> Config:
         muted_flag=_share_dir() / "muted",
         events=events,
     )
-
-
-def socket_path() -> Path:
-    runtime = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
-    return Path(runtime) / "tts.sock"
 
 
 def notify(title: str, body: str) -> None:

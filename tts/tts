@@ -30,7 +30,10 @@ def main() -> int:
         print("say needs something to say", file=sys.stderr)
         return 2
 
-    reply = send(build_message(verb, text))
+    # wait=True: only the interactive CLI may block for a cold-starting
+    # daemon. Hook adapters (tts.client.send's other caller) must use the
+    # non-blocking default, since a turn cannot afford to sit through it.
+    reply = send(build_message(verb, text), wait=True)
     if verb == "status":
         print(reply or "daemon not running")
     return 0
