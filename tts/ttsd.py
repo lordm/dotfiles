@@ -323,6 +323,10 @@ class Daemon:
         self._retiring: _Playback | None = None
         self._speaking = False
         self._generation = 0
+        # Bumped only by an explicit stop/mute, never by "newest utterance
+        # wins". An utterance that was already in flight when the user asked
+        # for silence checks this before it queues any audio.
+        self._stop_epoch = 0
         self._lock = threading.Lock()
         self._server: socket.socket | None = None
         self._stop_serving = threading.Event()
@@ -381,11 +385,13 @@ class Daemon:
 
         cmd = message.get("cmd")
         if cmd == "stop":
+            self._cancel_pending()
             self.stop_speaking()
             return
         if cmd == "toggle":
             self._set_muted(not self.muted)
             if self.muted:
+                self._cancel_pending()
                 self.stop_speaking()
             return
         if cmd == "status":
@@ -400,6 +406,13 @@ class Daemon:
             return  # turned off in config.toml: no speech, and no notification
         if self.muted:
             return
+
+        # Snapshot before the focus check, which forks tmux and can take
+        # seconds if tmux is wedged. A stop landing inside that window has to
+        # win: this message reached the daemon first, but the user asked for
+        # silence second, and the later instruction is the one they meant.
+        with self._lock:
+            epoch = self._stop_epoch
 
         pane = message.get("pane")
         if pane is not None and not isinstance(pane, str):
@@ -421,6 +434,8 @@ class Daemon:
 
         self.stop_speaking()  # newest utterance wins
         with self._lock:
+            if epoch != self._stop_epoch:
+                return  # silenced while we were deciding; queue nothing
             self._generation += 1
             generation = self._generation
         for sentence in split_sentences(spoken):
@@ -452,6 +467,33 @@ class Daemon:
                 return
             if item is _STOP:
                 self._work.put(_STOP)  # a shutdown request is not stale work
+                return
+
+    def _cancel_pending(self) -> None:
+        """Drop utterances that have been accepted but not yet turned into audio.
+
+        Only an explicit `tts stop` or a mute calls this -- never the
+        "newest utterance wins" path, which must leave messages queued behind
+        it alone precisely because they are newer than the one arriving.
+
+        Moving handle() off the accept loop put a queue between the socket and
+        the decision to speak, and a queue is somewhere a stop can be overtaken:
+        the accept thread answers the stop immediately while the intake thread
+        is still parked in a focus check for a message that arrived first, and
+        that message would then start talking after the user asked for silence.
+        Bumping the epoch closes the in-flight case, draining closes the queued
+        one. `tts stop` is specified as "silence immediately, drop pending", and
+        these are the pending.
+        """
+        with self._lock:
+            self._stop_epoch += 1
+        while True:
+            try:
+                item = self._intake.get_nowait()
+            except queue.Empty:
+                return
+            if item is _STOP:
+                self._intake.put(_STOP)  # a shutdown request is not stale work
                 return
 
     # ---- synthesis ---------------------------------------------------

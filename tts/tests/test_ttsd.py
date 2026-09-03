@@ -884,6 +884,83 @@ class TestAcceptLoopNeverBlocks:
         assert seen["kwargs"]["stderr"] is ttsd.subprocess.DEVNULL
 
 
+class TestStopBeatsPendingWork:
+    """`tts stop` is specified as "silence immediately, drop pending".
+
+    Handling messages on the intake thread put a queue between the socket and
+    the decision to speak, and a queue is somewhere a stop can be overtaken:
+    the accept thread answers the stop at once while the intake thread is still
+    parked in a focus check for a message that arrived first. That message must
+    not start talking afterwards -- it reached the daemon first, but the user
+    asked for silence second, and the later instruction is the one they meant.
+    """
+
+    def _wedge(self):
+        entered, release = threading.Event(), threading.Event()
+
+        def blocked(*args, **kwargs):
+            entered.set()
+            release.wait(10)
+            return True
+
+        return entered, release, blocked
+
+    def test_a_stop_cancels_the_utterance_being_decided(self):
+        entered, release, hung_focus = self._wedge()
+        with _serving(focus_check=hung_focus) as (d, path):
+            _send(path, _speak_request("First."))
+            assert entered.wait(2), "the focus check never ran"
+            _send(path, b'{"cmd": "stop"}\n')
+            _status(path)  # barrier: the accept loop is FIFO, so the stop ran
+            release.set()
+            assert not _wait_for(lambda: d.engine.calls, timeout=1.0), \
+                f"spoke after a stop: {d.engine.calls}"
+
+    def test_a_stop_drops_an_utterance_waiting_in_intake(self):
+        entered, release, hung_focus = self._wedge()
+        with _serving(focus_check=hung_focus) as (d, path):
+            _send(path, _speak_request("First."))
+            assert entered.wait(2), "the focus check never ran"
+            _send(path, _speak_request("Second."))
+            assert _wait_for(lambda: _status(path)["queued"] >= 1), \
+                "the second utterance never reached the intake queue"
+            _send(path, b'{"cmd": "stop"}\n')
+            _status(path)  # barrier: the accept loop is FIFO, so the stop ran
+            release.set()
+            assert not _wait_for(lambda: d.engine.calls, timeout=1.0), \
+                f"spoke after a stop: {d.engine.calls}"
+
+    def test_muting_cancels_an_utterance_being_decided(self):
+        entered, release, hung_focus = self._wedge()
+        with _serving(focus_check=hung_focus) as (d, path):
+            _send(path, _speak_request("First."))
+            assert entered.wait(2), "the focus check never ran"
+            _send(path, b'{"cmd": "toggle"}\n')
+            _status(path)  # barrier: the accept loop is FIFO, so the mute ran
+            release.set()
+            assert not _wait_for(lambda: d.engine.calls, timeout=1.0), \
+                f"spoke after being muted: {d.engine.calls}"
+
+    def test_a_new_utterance_leaves_the_ones_behind_it_alone(self):
+        """Only an explicit stop cancels; "newest wins" must not over-reach.
+
+        The guard against fixing the race by simply draining intake whenever
+        anything supersedes anything: the messages queued behind an utterance
+        are *newer* than it, and dropping them would lose the very turn the
+        user is waiting to hear.
+        """
+        entered, release, hung_focus = self._wedge()
+        with _serving(focus_check=hung_focus) as (d, path):
+            _send(path, _speak_request("First."))
+            assert entered.wait(2), "the focus check never ran"
+            _send(path, _speak_request("Second."))
+            assert _wait_for(lambda: _status(path)["queued"] >= 1), \
+                "the second utterance never reached the intake queue"
+            release.set()
+            assert _wait_for(lambda: "Second." in d.engine.calls), \
+                f"a queued utterance was lost: {d.engine.calls}"
+
+
 class TestPlaybackFailure:
     def test_missing_paplay_does_not_raise(self, tmp_path):
         def factory():
