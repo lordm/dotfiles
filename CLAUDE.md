@@ -214,6 +214,14 @@ Gotchas worth knowing before changing any of this:
   connecting. The tmux focus query and `notify-send` therefore live on the intake
   thread, and `notify()` is spawned and forgotten. Commands (`stop`, `toggle`) stay
   on the accept thread on purpose — a stop queued behind an utterance is not a stop.
+- **A stop carries an epoch, because the intake queue can otherwise outrun it.**
+  Answering `stop` on the accept thread while `handle()` runs on the intake thread
+  means an utterance that arrived *before* the stop can queue its audio *after* it
+  and start talking. `_cancel_pending()` bumps `_stop_epoch` and drains the intake
+  queue; `handle()` snapshots the epoch before the focus query and re-checks it
+  under the lock before queueing a sentence. Only an explicit stop or mute does
+  this — the "newest utterance wins" path must not, since messages queued behind
+  an utterance are newer than it and dropping them would lose the awaited turn.
 - **`[events]` in `config.toml` gates the four wired events**, keyed on
   `(source, kind)` from the hook payload. Off means neither spoken nor sent to
   `notify-send`. Everything defaults to on, and `load_config` discards unknown or
