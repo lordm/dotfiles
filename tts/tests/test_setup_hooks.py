@@ -167,3 +167,34 @@ def test_a_stale_marked_block_is_replaced_not_repeated(tmp_path):
     assert "moved-since" not in text
     assert "tts/hooks/codex.py" in text
     assert codex(tmp_path)["model"] == "x"
+
+
+def test_the_settings_file_keeps_its_mode_across_the_merge(tmp_path):
+    """A merge must not relax the permissions of the file it edits.
+
+    ~/.claude/settings.json is deliberately 600 and holds an `env` block. The
+    merge writes a temp and `mv`s it over the original, and `mv` replaces the
+    inode -- so without care the original's mode is discarded and the temp's
+    umask mode is what survives, silently publishing the file to the group and
+    the world on a default 002 umask. Our own installer is the last place that
+    should be doing that.
+    """
+    (tmp_path / ".claude").mkdir(parents=True)
+    settings_file = tmp_path / ".claude/settings.json"
+    settings_file.write_text(json.dumps({"env": {"SOME_TOKEN": "pretend-secret"}}))
+    settings_file.chmod(0o600)
+
+    merge(tmp_path, "umask 0002", "merge_claude_hooks")
+
+    assert CLAUDE_HOOK in commands(tmp_path, "Stop"), "the merge did not run"
+    assert settings_file.stat().st_mode & 0o777 == 0o600
+    assert settings(tmp_path)["env"]["SOME_TOKEN"] == "pretend-secret"
+
+
+def test_a_settings_file_created_by_the_merge_is_private(tmp_path):
+    """On a fresh machine the mode comes from the umask unless we set it."""
+    merge(tmp_path, "umask 0002", "merge_claude_hooks")
+
+    settings_file = tmp_path / ".claude/settings.json"
+    assert CLAUDE_HOOK in commands(tmp_path, "Stop"), "the merge did not run"
+    assert settings_file.stat().st_mode & 0o777 == 0o600

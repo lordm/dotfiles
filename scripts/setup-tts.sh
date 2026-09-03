@@ -69,6 +69,10 @@ merge_claude_hooks() {
     mkdir -p "$(dirname "$settings")"
     if [ ! -f "$settings" ]; then
         echo '{}' >"$settings"
+        # 600 explicitly, not whatever the caller's umask happens to be. This
+        # file grows an `env` block, and a fresh install is exactly the moment
+        # nobody is watching the mode.
+        chmod 600 "$settings"
         created=1  # nothing to back up: there was no file a moment ago
     fi
     if ! jq -e 'type == "object"' "$settings" >/dev/null 2>&1; then
@@ -81,6 +85,10 @@ merge_claude_hooks() {
         rm -f "$tmp"
         return 0
     fi
+    # The temp holds a copy of the user's settings, env block included, from
+    # here until the mv. Narrow it now rather than leaving it umask-wide for
+    # the length of two jq validations.
+    chmod 600 "$tmp"
 
     # Land nothing that cannot be read back, that lost a hook the user already
     # had, or that somehow does not contain the hooks this was supposed to add.
@@ -111,6 +119,10 @@ merge_claude_hooks() {
         return 0
     fi
     [ "$created" -eq 1 ] || backup_file "$settings"
+    # mv replaces the inode, so the original's mode would be discarded and the
+    # temp's umask mode kept -- silently relaxing a deliberately-600 settings
+    # file to 664 on a default umask. Carry the mode across the replacement.
+    chmod --reference="$settings" "$tmp" 2>/dev/null || chmod 600 "$tmp"
     mv "$tmp" "$settings"
     if [ "$created" -eq 1 ]; then
         echo "    created ~/.claude/settings.json from tts/claude-hooks.json"
