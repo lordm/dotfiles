@@ -149,6 +149,9 @@ if command -v zoxide > /dev/null; then
   eval "$(zoxide init zsh)"
 fi
 
+# Local binaries (yabridge, etc.)
+export PATH="$HOME/.local/bin:$PATH"
+
 # Agent TTS
 # ~/.local/bin holds the `tts` CLI (see install.sh); guard against duplicating
 # a PATH entry the user may already have added themselves.
