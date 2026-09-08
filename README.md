@@ -107,7 +107,6 @@ Then run `:PlugInstall` in Vim.
 ```bash
 dose                # docker compose
 tmux                # tmux -2 (256 color support)
-claude-phi          # Claude Code with personal config
 nvchad              # Switch Neovim to NvChad
 lazyvim             # Switch Neovim to LazyVim
 restartswap         # Restart swap space
@@ -169,6 +168,18 @@ Low-latency guitar practice setup using Wine + yabridge + REAPER + PipeWire JACK
   - `setup-neuraldsp.sh` — full install of Wine, yabridge, and dependencies
 
 See [NEURAL_DSP_LINUX_GUIDE.md](NEURAL_DSP_LINUX_GUIDE.md) for the complete setup guide.
+
+## Agent TTS (Spoken Responses)
+
+Spoken Claude Code and Codex responses via local Kokoro synthesis (`tts/`, see `scripts/setup-tts.sh`).
+
+A warm daemon (`tts/ttsd.py`) holds the Kokoro ONNX model behind a Unix socket — no network calls at runtime, measured RTF 0.41. Hook adapters in `tts/hooks/` extract text from each harness's payload and hand it off without blocking the agent.
+
+- **Control**: `tts stop` (aliased `shh`), `tts toggle` (aliased `tts-off`), `tts status`, or tmux `prefix + S`
+- **Setup**: `install.sh` only symlinks the config and CLI — run `scripts/setup-tts.sh` manually, it pulls ~353MB of model files and installs a systemd user service
+- **Hooks**: the same script merges `tts/claude-hooks.json` into `~/.claude/settings.json` and `tts/codex-hooks.toml` into `~/.codex/config.toml` — backed up first, idempotent on a re-run, and never replacing a hook you already had. Codex additionally needs the hooks approved once via `/hooks` in its TUI
+
+See [CLAUDE.md](CLAUDE.md) for the focus rules and other gotchas.
 
 ## Development Tools
 

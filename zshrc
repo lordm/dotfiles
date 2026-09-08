@@ -119,8 +119,6 @@ eval "$(pyenv virtualenv-init -)"
   export PATH="${HOME}/.luarocks/bin${PATH:+:${PATH}}"
 }
 
-alias claude-phi='CLAUDE_CONFIG_DIR=~/.config/claude-personal claude'
-
 # Neovim config switcher functions
 nvim-switch-nvchad() {
   unlink ~/.config/nvim 2>/dev/null || true
@@ -150,3 +148,16 @@ df_docker_image() {
 if command -v zoxide > /dev/null; then
   eval "$(zoxide init zsh)"
 fi
+
+# Local binaries (yabridge, etc.)
+export PATH="$HOME/.local/bin:$PATH"
+
+# Agent TTS
+# ~/.local/bin holds the `tts` CLI (see install.sh); guard against duplicating
+# a PATH entry the user may already have added themselves.
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) ;;
+  *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
+alias shh='tts stop'
+alias tts-off='tts toggle'

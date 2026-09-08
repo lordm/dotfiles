@@ -28,7 +28,7 @@ Run Neural DSP Archetype plugins (Nolly, Petrucci, etc.) on Linux for low-latenc
     |                                           |
     |                                      [yabridge]  (Linux .so shim)
     |                                           |
-    |                                      [Wine 9.21]  (yabridge-host.exe)
+    |                                      [Wine Staging]  (yabridge-host.exe)
     |                                           |
     |                                      [Neural DSP VST3]
     |                                        Archetype Nolly X
@@ -55,7 +55,7 @@ Run Neural DSP Archetype plugins (Nolly, Petrucci, etc.) on Linux for low-latenc
   pw-jack           Wrapper that connects REAPER to PipeWire's JACK server
   REAPER            DAW, hosts VST3 plugins, handles recording/playback
   yabridge          Bridges Windows VST3 (in Wine) to native Linux VST3
-  Wine 9.21         Runs Windows plugin binaries (Neural DSP, iLok)
+  Wine Staging      Runs Windows plugin binaries (Neural DSP, iLok)
   ALSA              Kernel-level audio driver for Scarlett Solo USB
 ```
 
@@ -64,7 +64,7 @@ Run Neural DSP Archetype plugins (Nolly, Petrucci, etc.) on Linux for low-latenc
 ## Table of Contents
 
 1. [Prerequisites](#prerequisites)
-2. [Install Wine Staging 9.21](#install-wine-staging-921)
+2. [Install Wine Staging](#install-wine-staging)
 3. [Configure Wine Prefix](#configure-wine-prefix)
 4. [Install iLok License Support](#install-ilok-license-support)
 5. [Install Neural DSP Plugins](#install-neural-dsp-plugins)
@@ -94,12 +94,22 @@ pw-cli list-objects Node | grep -i "your-interface-name"
 
 ---
 
-## Install Wine Staging 9.21
+## Install Wine Staging
 
-> **CRITICAL: You must use Wine Staging 9.21, not newer.**
-> Wine 9.22+ and Wine 10/11 have a regression that breaks yabridge's GUI embedding — plugin windows render but are completely unresponsive to mouse input. This is tracked in [yabridge #409](https://github.com/robbert-vdh/yabridge/issues/409). Pin to 9.21 until yabridge releases a fix.
+> **This guidance changed in 2026. Read it before picking a version.**
 >
-> **Note on standalone mode:** Wine 9.21 has a different issue where Neural DSP standalone `.exe` files crash with `Exception frame is not in stack limits`. Standalone mode requires Wine 11.x, but that breaks yabridge embedding. Since you can only use one Wine version at a time, **use Wine 9.21 with REAPER + yabridge** — this is the more versatile workflow (multiple plugins on separate tracks, recording, etc.).
+> Wine 9.22 through Wine 11 broke yabridge's GUI embedding: plugin windows render and audio processes normally, but the window ignores all mouse input. Tracked in [yabridge #409](https://github.com/robbert-vdh/yabridge/issues/409). The original workaround in this guide was to pin Wine to 9.21 — **that pin is no longer necessary.**
+>
+> The fix branch (`new-wine10-embedding`) was merged into yabridge master on **2026-04-26**. A current Wine plus a yabridge *development build* works. Verified on this machine (2026-08-17) with **Wine Staging 11.13 + yabridge `5.1.1-57-gb580a9f7`**: plugin GUIs respond correctly in REAPER *and* the standalone `.exe` runs. The two workflows are no longer mutually exclusive.
+>
+> The catch: yabridge has had **no tagged release since 5.1.1 (Nov 2024)**, so this path requires a CI build from master — see [Install Yabridge](#install-yabridge).
+
+**Pick one:**
+
+| Path | Wine | Yabridge | REAPER GUI | Standalone `.exe` |
+|---|---|---|---|---|
+| **Current (recommended)** | 11.13 | master dev build | works | works |
+| Released-software-only | 9.21 (pinned) | 5.1.1 stable | works | crashes |
 
 ```bash
 # Enable 32-bit architecture
@@ -111,29 +121,31 @@ sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-bui
 sudo wget -NP /etc/apt/sources.list.d/ \
   https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources
 
-# Install Wine Staging 9.21 specifically
+# Install a pinned Wine Staging version. 11.13 is what this guide is verified against;
+# for the released-software-only path substitute 9.21~noble-1 in all four places.
 sudo apt update
 sudo apt install --install-recommends \
-  winehq-staging=9.21~noble-1 \
-  wine-staging=9.21~noble-1 \
-  wine-staging-amd64=9.21~noble-1 \
-  wine-staging-i386:i386=9.21~noble-1
+  winehq-staging=11.13~noble-1 \
+  wine-staging=11.13~noble-1 \
+  wine-staging-amd64=11.13~noble-1 \
+  wine-staging-i386:i386=11.13~noble-1
 
-# Pin the version to prevent auto-upgrade
-sudo apt-mark hold winehq-staging wine-staging wine-staging-amd64 wine-staging-i386
+# Pin so unattended-upgrades cannot drift you onto an untested version.
+# NOTE the :i386 suffix on the last package — without it the hold silently does nothing.
+sudo apt-mark hold winehq-staging wine-staging wine-staging-amd64 wine-staging-i386:i386
 
-# Verify
-wine --version
-# Expected: wine-9.21 (Staging)
+# Verify — both the version AND that the holds actually took
+wine --version                # Expected: wine-11.13 (Staging)
+apt-mark showhold             # Expected: all four packages listed
 ```
+
+> **Verify the holds, don't assume them.** A missing hold is how this setup silently breaks: an unattended upgrade moves Wine forward, and the next practice session opens to a frozen plugin GUI with working audio. `dpkg -l` shows held packages as `hi`, not `ii`. Re-check `apt-mark showhold` after anything that runs `apt-mark unhold`.
 
 Install winetricks:
 
 ```bash
 sudo apt install winetricks
 ```
-
-> **Activation workaround:** You need Wine 11.x temporarily to activate licenses via the standalone (see [Activate Licenses](#activate-licenses)). After activation, downgrade back to 9.21. License data persists in the Wine prefix.
 
 ---
 
@@ -209,13 +221,22 @@ wine ~/Downloads/Archetype-Petrucci-X-Installer*.exe
 
 ## Activate Licenses
 
-Activation requires GUI interaction via the standalone `.exe`, which requires Wine 11.x. If you installed Wine 9.21 first, temporarily upgrade for activation:
+Activation requires GUI interaction via the standalone `.exe`, which needs Wine 11.x. On the recommended path you are already on 11.13, so nothing to do here — skip to the launch command below.
+
+<details>
+<summary>Only if you took the released-software-only path (Wine 9.21)</summary>
+
+Wine 9.21 crashes Neural DSP standalones, so activation needs a temporary upgrade and then a downgrade back:
 
 ```bash
-# Temporarily unhold and upgrade Wine for activation
-sudo apt-mark unhold winehq-staging wine-staging wine-staging-amd64 wine-staging-i386
+sudo apt-mark unhold winehq-staging wine-staging wine-staging-amd64 wine-staging-i386:i386
 sudo apt install --install-recommends winehq-staging
+# ...activate, then downgrade back using the block further down...
 ```
+
+**This unhold is a trap.** Forgetting to re-hold afterwards is exactly how Wine silently drifts forward later and breaks the plugin GUI. Re-run `apt-mark showhold` when you are done and confirm all four packages are listed.
+
+</details>
 
 Launch each plugin's standalone in a Wine virtual desktop:
 
@@ -231,7 +252,7 @@ wine explorer /desktop=NeuralDSP,1920x1080 \
 - Once activated, close the plugin
 - Repeat for each plugin
 
-After activation, downgrade back to Wine 9.21:
+On the released-software-only path, downgrade back to Wine 9.21 afterwards (on the recommended path, stay on 11.13):
 
 ```bash
 sudo apt install --allow-downgrades \
@@ -239,7 +260,8 @@ sudo apt install --allow-downgrades \
   wine-staging=9.21~noble-1 \
   wine-staging-amd64=9.21~noble-1 \
   wine-staging-i386:i386=9.21~noble-1
-sudo apt-mark hold winehq-staging wine-staging wine-staging-amd64 wine-staging-i386
+sudo apt-mark hold winehq-staging wine-staging wine-staging-amd64 wine-staging-i386:i386
+apt-mark showhold   # confirm all four — the hold is the whole point
 ```
 
 > **Note:** License data is stored in the Wine prefix and persists across Wine version changes. You only need to activate once.
@@ -253,6 +275,54 @@ sudo apt-mark hold winehq-staging wine-staging wine-staging-amd64 wine-staging-i
 Yabridge bridges Windows VST plugins running in Wine to appear as native Linux VSTs. It is not in Ubuntu 24.04's apt repos — install from GitHub.
 
 > **Architecture note:** Yabridge creates native Linux `.so` shims for each Windows `.vst3`. When your DAW loads the shim, yabridge spawns a Wine host process for the real plugin. Audio passes through your DAW's native audio path (PipeWire/JACK), NOT through Wine's audio. This means WineASIO is NOT needed for the DAW workflow.
+
+### Development build (required for Wine 9.22+, including 11.13)
+
+The last tagged release, 5.1.1, predates the Wine 10/11 embedding rewrite and will give you an unresponsive plugin GUI on any Wine newer than 9.21. The fix lives on master. Until a release is tagged, install a CI build:
+
+```bash
+# List recent master builds (needs the gh CLI, authenticated)
+gh api "repos/robbert-vdh/yabridge/actions/artifacts?per_page=30" \
+  --jq '.artifacts[] | select(.expired==false) | select(.workflow_run.head_branch=="master")
+        | "\(.created_at[0:10])  \(.name)  id=\(.id)"'
+
+# Download the yabridge + yabridgectl pair from the newest run (substitute the two IDs)
+cd /tmp
+gh api repos/robbert-vdh/yabridge/actions/artifacts/<YABRIDGE_ID>/zip    > yabridge-dev.zip
+gh api repos/robbert-vdh/yabridge/actions/artifacts/<YABRIDGECTL_ID>/zip > yabridgectl-dev.zip
+
+# Back up the current install first — this is what makes rollback a one-liner
+cp -a ~/.local/share/yabridge ~/.local/share/yabridge.bak
+cp -a ~/.local/bin/yabridgectl ~/.local/bin/yabridgectl.bak
+
+# GitHub wraps the tarball in a .zip, so it unpacks twice
+mkdir -p /tmp/yb && cd /tmp/yb
+unzip -q /tmp/yabridge-dev.zip && unzip -q /tmp/yabridgectl-dev.zip
+tar xzf yabridge-*.tar.gz && tar xzf yabridgectl-*.tar.gz
+
+cp -f yabridge/* ~/.local/share/yabridge/
+cp -f yabridgectl/yabridgectl ~/.local/bin/yabridgectl
+chmod +x ~/.local/share/yabridge/*.so ~/.local/share/yabridge/*.exe ~/.local/bin/yabridgectl
+
+yabridgectl sync   # required after any yabridge upgrade
+```
+
+No `gh`? The same artifacts are downloadable without auth via [nightly.link](https://nightly.link/robbert-vdh/yabridge/workflows/build/master).
+
+> `yabridgectl --version` still prints `5.1.1` on a dev build — the version string is not stamped with the git describe suffix. To confirm the swap actually took, compare file timestamps or checksums against your backup:
+> ```bash
+> md5sum ~/.local/share/yabridge/libyabridge-vst3.so ~/.local/share/yabridge.bak/libyabridge-vst3.so
+> ```
+
+**Rollback**, if a dev build misbehaves:
+
+```bash
+cp -a ~/.local/share/yabridge.bak/* ~/.local/share/yabridge/
+cp -a ~/.local/bin/yabridgectl.bak ~/.local/bin/yabridgectl
+yabridgectl sync
+```
+
+### Stable release (only for the Wine 9.21 path)
 
 ```bash
 # Get latest version
@@ -609,13 +679,30 @@ chmod +x ~/scripts/guitar-session.sh
 
 ### Plugin GUI renders but doesn't respond to mouse clicks
 
-**Cause:** Wine 9.22+ broke X11 window embedding for yabridge. Tracked in [yabridge #409](https://github.com/robbert-vdh/yabridge/issues/409).
-**Fix:** Downgrade to Wine Staging 9.21 (see [Install Wine](#install-wine-staging-921)).
+Audio still processes — you hear the amp — but the interface is frozen. **This is a Wine/yabridge version mismatch, not a plugin fault.**
+
+**Cause:** Wine 9.22+ broke X11 window embedding for yabridge ([#409](https://github.com/robbert-vdh/yabridge/issues/409)). yabridge 5.1.1 and older cannot embed on those versions.
+
+**Diagnose first** — the two versions must be a matched pair:
+
+```bash
+wine --version                                    # 9.21, or 9.22+?
+ls -la ~/.local/share/yabridge/libyabridge-vst3.so  # dated Nov 2024 = stable 5.1.1
+apt-mark showhold                                 # empty = Wine can drift; the usual culprit
+```
+
+**Fix — pick the pair, not one half:**
+- **Wine 9.22+ (recommended):** install a [yabridge development build](#install-yabridge). Keeps standalone `.exe` support working too.
+- **Stable yabridge 5.1.1:** downgrade to Wine Staging 9.21 (see [Install Wine Staging](#install-wine-staging)).
+
+Either way, **re-apply `apt-mark hold` and verify it with `apt-mark showhold`** — an empty hold list is what lets an unattended upgrade recreate this. Note the hold needs `wine-staging-i386:i386`, with the architecture suffix.
+
+**Related, subtler symptom:** the GUI responds, but clicks land offset down and to the right of the cursor. Same root cause, same fix — the cursor-offset fix landed on yabridge master in Jan 2026. Historically this hit REAPER harder than other DAWs, and residual reports cluster on Wayland, i3, and HiDPI scaling rather than plain X11 at 100%.
 
 ### Standalone .exe crashes with "Exception frame is not in stack limits"
 
 **Cause:** Wine 9.21 doesn't support Neural DSP standalone executables.
-**Fix:** Standalone mode requires Wine 11.x. Use REAPER + yabridge on Wine 9.21 instead, or temporarily upgrade Wine for standalone use. You cannot use both workflows with the same Wine version.
+**Fix:** Move to Wine 11.x with a yabridge development build. This used to be an either/or — Wine 9.21 for REAPER, Wine 11 for standalone — but since the embedding fix merged to yabridge master, **Wine 11.13 + a master dev build runs both.**
 
 ### Crackles/pops at all buffer sizes
 
@@ -786,8 +873,8 @@ This guide was tested and verified with:
 | Ubuntu | 24.04 LTS |
 | Kernel | 6.17.0 |
 | PipeWire | 1.0.5 |
-| Wine | Staging 9.21 (pinned) |
-| Yabridge | 5.1.1 |
+| Wine | Staging 11.13 (pinned — verify with `apt-mark showhold`) |
+| Yabridge | master dev build `5.1.1-57-gb580a9f7` (2026-08-02) |
 | REAPER | 7.52 |
 | iLok License Support | 5.10.4 |
 | Audio interface | Focusrite Scarlett Solo 4th Gen (USB, class-compliant) |

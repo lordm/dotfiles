@@ -1,0 +1,24 @@
+{
+  "Stop": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "python3 ~/workspace/dotfiles/tts/hooks/claude.py"
+        }
+      ]
+    }
+  ],
+  "Notification": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "python3 ~/workspace/dotfiles/tts/hooks/claude.py"
+        }
+      ]
+    }
+  ]
+}

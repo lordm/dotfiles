@@ -98,6 +98,12 @@ mkdir -p ~/.config
 ln -fs "$PWD/lazyvim" ~/.config/nvim   # default config; switch with `nvchad`/`lazyvim` aliases
 ln -fs "$PWD/zshrc_imi" ~/.zshrc_imi
 
+# Agent TTS (config + CLI only -- scripts/setup-tts.sh installs the model and
+# service; run it manually, it pulls ~353MB)
+mkdir -p ~/.config/tts ~/.local/bin
+ln -fs "$PWD/tts/config.toml" ~/.config/tts/config.toml
+ln -fs "$PWD/tts/tts" ~/.local/bin/tts
+
 # Ghostty
 mkdir -p ~/.config/ghostty
 cp -r ~/.config/ghostty ~/.config/ghostty_old 2>/dev/null
@@ -116,10 +122,17 @@ ln -fs "$PWD/wireplumber/main.lua.d/51-scarlett-low-latency.lua" ~/.config/wirep
 mkdir -p ~/.config/yabridge
 ln -fs "$PWD/yabridge/yabridge.toml" ~/.config/yabridge/yabridge.toml
 
-# Scripts
-mkdir -p ~/scripts
-ln -fs "$PWD/scripts/guitar-session.sh" ~/scripts/guitar-session.sh
-ln -fs "$PWD/scripts/setup-neuraldsp.sh" ~/scripts/setup-neuraldsp.sh
-ln -fs "$PWD/scripts/tmux-status.sh" ~/scripts/tmux-status.sh
+# Scripts -- the whole directory, so a new script is usable the moment it lands
+# in the repo. This used to be per-file links, and adding one meant remembering
+# to add a line here too; forgetting it left tmux running a path that did not
+# exist (a silent no-op, since tmux swallows a failed status job).
+#
+# The rm is not optional. `ln -fs "$PWD/scripts" ~/scripts` against an existing
+# real directory does NOT replace it -- it silently drops the link *inside* it as
+# ~/scripts/scripts and exits 0. `-n` does not help either: it only changes
+# behaviour when the destination is already a symlink. Same idiom as ghostty above.
+cp -r ~/scripts ~/scripts_old 2>/dev/null
+rm -rf ~/scripts
+ln -fs "$PWD/scripts" ~/scripts
 
 echo "All Done."

@@ -232,7 +232,7 @@ return {
         git = {
           use_git_root = true,
         },
-        command = "claude-imi",
+        command = "claude",
         keymaps = {
           toggle = {
             normal = "<leader>c,",

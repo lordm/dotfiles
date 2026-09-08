@@ -1,0 +1,15 @@
+# >>> agent-tts >>>
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = "python3 ~/workspace/dotfiles/tts/hooks/codex.py"
+timeout = 5
+statusMessage = "Speaking response"
+
+[[hooks.PermissionRequest]]
+[[hooks.PermissionRequest.hooks]]
+type = "command"
+command = "python3 ~/workspace/dotfiles/tts/hooks/codex.py"
+timeout = 5
+statusMessage = "Announcing approval request"
+# <<< agent-tts <<<
