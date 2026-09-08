@@ -99,6 +99,9 @@ All config files are symlinked from this repo to home directory. Edit files in t
 - `tmux.conf` → `~/.tmux.conf`
 - `zshrc` → `~/.zshrc`
 - `nvim/` → `~/.config/nvim`
+- `scripts/` → `~/scripts` (the whole directory, so a new script is usable the
+  moment it lands in the repo — this was per-file links, and forgetting to add
+  one left tmux running a path that did not exist, which fails silently)
 
 ### Version Managers
 - **Node.js**: nvm (auto-detects `.nvmrc` files)
@@ -184,7 +187,14 @@ after the service starts (before the ONNX session has actually run) reads far lo
 and is not the number to trust.
 
 Control it with `tts stop` (aliased `shh`), `tts toggle` (aliased `tts-off`), `tts
-status`, or the tmux binding `prefix + S`.
+status`, or the tmux bindings `prefix + S` (stop) and `prefix + T` (toggle).
+
+The tmux status line shows the state as a single Material Design Nerd Font glyph
+via `scripts/tmux-tts-status.sh`: `󰕾` idle (grey) or speaking (gold), `󰖁` muted
+(grey), `󰀦` no daemon (gold). Grey is a resting state, gold means something wants
+noticing. It always draws exactly one glyph, and sits at the left of
+`status-right` — that block is right-aligned, so a variable-width segment there
+would drag the load figures sideways on every state change.
 
 Gotchas worth knowing before changing any of this:
 - **`tts/paths.py` is a stdlib-only leaf module.** It holds `socket_path()` and
@@ -233,6 +243,38 @@ Gotchas worth knowing before changing any of this:
 - **Terminal window focus is not checked.** Wayland has no reliable unprivileged
   query for it, so alt-tabbing to a browser does not stop narration. This is
   deliberate.
+- **The status line must never ask the daemon anything.** `scripts/tmux-tts-status.sh`
+  runs on every tmux status tick *and* twice per utterance, so it is bash builtins
+  only — it stats files the daemon maintains (`$XDG_RUNTIME_DIR/tts.pid`,
+  `tts.speaking`, and the `muted` flag) rather than forking `tts status`, which
+  would spawn a Python interpreter and round-trip the socket. `tts/paths.py` owns
+  those locations and the script mirrors it; change one and you must change both.
+- **Liveness is the pid file, not the socket.** An AF_UNIX socket file outlives
+  the process that bound it, and the daemon installs no SIGTERM handler, so
+  `systemctl stop tts.service` leaves `tts.sock` on disk and `serve()`'s `finally`
+  never runs. A `[ -S ]` test therefore called a stopped daemon "running" — that
+  was a real bug in the first version of the indicator. `/proc/<pid>` is the only
+  honest check. The same missing handler is why the speaking flag is cleared
+  unconditionally at startup: that, not shutdown, is where the cleanup can run.
+- **The daemon pushes the status line; it does not wait to be polled.**
+  `poke_status_line()` runs `tmux refresh-client -S` fire-and-forget on each
+  speaking transition, because a 5-second `status-interval` is longer than many
+  utterances and the icon would otherwise light up after the speech had finished.
+  A forced refresh genuinely re-executes `#()` jobs rather than redrawing cached
+  output (measured: ~5ms). It is spawned and forgotten exactly like `notify()`,
+  since it is called from the worker thread and, on an interruption, from the
+  accept thread — which may never wait on a subprocess.
+- **The speaking flag is written outside `_lock`, under its own `_flag_lock`.**
+  The module's rule is that no I/O happens under `_lock`, but a bare read-then-write
+  would let a stop racing a claim leave the flag inverted. `_flag_lock` serialises
+  the pair and takes `_lock` inside itself, never the reverse.
+- **Status-bar icons come from the Material Design (Plane 15) range, not FontAwesome.**
+  Ghostty's configured font is plain JetBrains Mono, so these resolve through
+  fontconfig fallback. The `U+F0xx` FontAwesome codepoints are also claimed by
+  Webdings and some legacy CJK fonts, where fallback can draw a *wrong* glyph
+  instead of an obvious missing-glyph box; the `U+F0xxx` Material Design ones
+  resolve to exactly one installed font (`UbuntuMono Nerd Font`) and are patched
+  to single-cell width, so the status-right column budget still holds.
 - **Hook adapters exit zero on every failure path.** A dead daemon or missing model
   must never break a turn. That also means failures are silent — debug by piping a
   payload into the adapter by hand.
