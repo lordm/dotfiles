@@ -122,11 +122,17 @@ ln -fs "$PWD/wireplumber/main.lua.d/51-scarlett-low-latency.lua" ~/.config/wirep
 mkdir -p ~/.config/yabridge
 ln -fs "$PWD/yabridge/yabridge.toml" ~/.config/yabridge/yabridge.toml
 
-# Scripts
-mkdir -p ~/scripts
-ln -fs "$PWD/scripts/guitar-session.sh" ~/scripts/guitar-session.sh
-ln -fs "$PWD/scripts/setup-neuraldsp.sh" ~/scripts/setup-neuraldsp.sh
-ln -fs "$PWD/scripts/setup-hibernate.sh" ~/scripts/setup-hibernate.sh
-ln -fs "$PWD/scripts/tmux-status.sh" ~/scripts/tmux-status.sh
+# Scripts -- the whole directory, so a new script is usable the moment it lands
+# in the repo. This used to be per-file links, and adding one meant remembering
+# to add a line here too; forgetting it left tmux running a path that did not
+# exist (a silent no-op, since tmux swallows a failed status job).
+#
+# The rm is not optional. `ln -fs "$PWD/scripts" ~/scripts` against an existing
+# real directory does NOT replace it -- it silently drops the link *inside* it as
+# ~/scripts/scripts and exits 0. `-n` does not help either: it only changes
+# behaviour when the destination is already a symlink. Same idiom as ghostty above.
+cp -r ~/scripts ~/scripts_old 2>/dev/null
+rm -rf ~/scripts
+ln -fs "$PWD/scripts" ~/scripts
 
 echo "All Done."
