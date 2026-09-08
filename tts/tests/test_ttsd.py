@@ -18,6 +18,23 @@ from tts.engine import StubEngine
 from tts.ttsd import MAX_MESSAGE_BYTES, Config, Daemon, load_config, socket_path
 
 
+@pytest.fixture(autouse=True)
+def isolate_runtime_state(tmp_path_factory, monkeypatch):
+    """Keep the suite out of the real runtime dir, and off the real tmux.
+
+    Config resolves speaking_flag and pid_file through ttsd._runtime_dir at
+    construction time, so pointing that at a scratch directory keeps every
+    Daemon built by these tests from writing into $XDG_RUNTIME_DIR, where a
+    live daemon's own flags are sitting. poke_status_line is stubbed for the
+    same reason in the other direction: a transition would otherwise fork
+    `tmux refresh-client` against whatever server the developer is running in.
+    """
+    scratch = tmp_path_factory.mktemp("runtime")
+    monkeypatch.setattr(ttsd, "_runtime_dir", lambda: scratch)
+    monkeypatch.setattr(ttsd, "poke_status_line", lambda: None)
+    return scratch
+
+
 class RecordingPlayer:
     """Stands in for the paplay subprocess."""
     def __init__(self):
@@ -1316,6 +1333,164 @@ class TestMuteFlagFilesystem:
                    player_factory=RecordingPlayer)
         d.handle({"cmd": "toggle"})  # must not raise
         assert d.status()["muted"] is False
+
+
+class TestSpeakingFlagFile:
+    """The speaking flag exists for the tmux status line.
+
+    It is read by scripts/tmux-tts-status.sh with shell builtins rather than by
+    asking the daemon, because that script runs on every status tick and may
+    not fork a Python interpreter to do it. So the file has to be an honest
+    mirror of status()["speaking"], including at the two moments that are easy
+    to get wrong: while the audio is still draining, and after a crash.
+    """
+
+    def _daemon(self, tmp_path, **player_kwargs):
+        players = []
+
+        def factory():
+            players.append(SignallingPlayer(**player_kwargs))
+            return players[-1]
+
+        d = Daemon(StubEngine(), _config(tmp_path),
+                   focus_check=lambda p, query=None: True,
+                   player_factory=factory)
+        _worker(d)
+        return d, players
+
+    def test_the_flag_tracks_an_utterance_from_start_to_drain(self, tmp_path):
+        d, players = self._daemon(tmp_path, block_close=True)
+        flag = d.config.speaking_flag
+
+        assert not flag.exists(), "flagged as speaking before anything was said"
+        d.handle({"text": "Still playing.", "pane": "%4", "kind": "response"})
+        assert _wait_for(lambda: flag.exists()), "no flag while speaking"
+        assert players[0].entered_close.wait(2), "the player was never retired"
+        assert flag.exists(), \
+            "the flag was cleared while the audio was still draining"
+
+        players[0].release_close.set()
+        assert _wait_for(lambda: not flag.exists()), \
+            "the flag outlived the audio it was describing"
+
+    def test_a_stop_clears_the_flag_immediately(self, tmp_path):
+        """The icon must go out when the user asks for silence, not after it."""
+        d, players = self._daemon(tmp_path, block_close=True)
+        flag = d.config.speaking_flag
+
+        d.handle({"text": "Cut me off.", "pane": "%4", "kind": "response"})
+        assert _wait_for(lambda: flag.exists()), "no flag while speaking"
+
+        d.handle({"cmd": "stop"})
+        assert not flag.exists(), "the flag survived a stop"
+
+    def test_the_flag_mirrors_the_reported_speaking_state(self, tmp_path):
+        d, players = self._daemon(tmp_path, block_close=True)
+        flag = d.config.speaking_flag
+
+        d.handle({"text": "Mirror me.", "pane": "%4", "kind": "response"})
+        assert _wait_for(lambda: flag.exists())
+        assert d.status()["speaking"] is True and flag.exists()
+
+        players[0].release_close.set()
+        assert _wait_for(lambda: d.status()["speaking"] is False)
+        assert _wait_for(lambda: not flag.exists()), \
+            "status() and the flag file disagreed"
+
+    def test_serve_clears_a_flag_left_by_a_killed_daemon(self, tmp_path):
+        """SIGTERM is unhandled, so the flag can only be cleaned up on startup.
+
+        `systemctl stop` bypasses serve()'s finally entirely, which means a
+        daemon that was speaking when it was stopped leaves the flag behind. If
+        startup did not clear it, the status line would show a stuck speaking
+        icon until the next utterance happened to end.
+        """
+        tmpdir = Path(tempfile.mkdtemp(prefix="ttsd-test-"))
+        try:
+            cfg = Config("af_heart", 1.15, 45.0, 160, tmpdir / "muted")
+            cfg.speaking_flag.write_text("")  # the corpse of a previous daemon
+            assert cfg.speaking_flag.exists()
+
+            d = Daemon(StubEngine(), cfg, focus_check=lambda p, query=None: True,
+                       player_factory=RecordingPlayer)
+            thread = threading.Thread(target=d.serve, args=(tmpdir / "s.sock",),
+                                      daemon=True)
+            thread.start()
+            try:
+                assert _wait_for(lambda: not cfg.speaking_flag.exists()), \
+                    "a stale speaking flag survived a daemon restart"
+            finally:
+                d._stop_serving.set()
+                thread.join(timeout=3)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_an_unwritable_flag_directory_does_not_crash_the_daemon(self, tmp_path):
+        """Same contract as the mute flag: a broken path costs the icon, not speech."""
+        blocker = tmp_path / "blocker"
+        blocker.write_text("not a directory")
+        cfg = _config(tmp_path)
+        cfg.speaking_flag = blocker / "speaking"
+        player = RecordingPlayer()
+        d = Daemon(StubEngine(), cfg, focus_check=lambda p, query=None: True,
+                   player_factory=lambda: player)
+
+        d.handle({"text": "Speak anyway.", "pane": "%4", "kind": "response"})
+        d.drain()  # must not raise
+
+        assert player.written, "a broken flag path silenced the utterance"
+
+    def test_transitions_poke_the_status_line(self, tmp_path):
+        """Without the poke the icon is only as fresh as tmux's 5s tick."""
+        pokes = []
+        player = RecordingPlayer()
+        d = Daemon(StubEngine(), _config(tmp_path),
+                   focus_check=lambda p, query=None: True,
+                   player_factory=lambda: player,
+                   status_poke=lambda: pokes.append(1))
+
+        d.handle({"text": "Poke.", "pane": "%4", "kind": "response"})
+        d.drain()
+
+        assert pokes, "tmux was never told the speaking state had changed"
+
+
+class TestPidFile:
+    """Liveness for the status line, which cannot use the socket for it.
+
+    An AF_UNIX socket file outlives the process that bound it and the daemon
+    installs no SIGTERM handler, so after `systemctl stop` the socket is still
+    sitting on disk. Only a pid can be checked against /proc.
+    """
+
+    def test_serve_publishes_our_pid(self):
+        tmpdir = Path(tempfile.mkdtemp(prefix="ttsd-test-"))
+        try:
+            cfg = Config("af_heart", 1.15, 45.0, 160, tmpdir / "muted")
+            d = Daemon(StubEngine(), cfg, focus_check=lambda p, query=None: True,
+                       player_factory=RecordingPlayer)
+            thread = threading.Thread(target=d.serve, args=(tmpdir / "s.sock",),
+                                      daemon=True)
+            thread.start()
+            try:
+                assert _wait_for(lambda: cfg.pid_file.exists()), "no pid file"
+                assert cfg.pid_file.read_text().strip() == str(os.getpid())
+            finally:
+                d._stop_serving.set()
+                thread.join(timeout=3)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_an_unwritable_pid_path_does_not_stop_the_daemon(self, tmp_path):
+        blocker = tmp_path / "blocker"
+        blocker.write_text("not a directory")
+        cfg = _config(tmp_path)
+        cfg.pid_file = blocker / "tts.pid"
+        d = Daemon(StubEngine(), cfg, focus_check=lambda p, query=None: True,
+                   player_factory=RecordingPlayer)
+
+        d._write_pid_file()  # must not raise
+        assert not cfg.pid_file.exists()
 
 
 class TestOddMessages:

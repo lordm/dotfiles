@@ -26,6 +26,16 @@ def share_dir() -> Path:
     return Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local/share")) / "tts"
 
 
-def socket_path() -> Path:
+def runtime_dir() -> Path:
+    """Where state that must not outlive the login session lives.
+
+    The socket goes here, and so do the pid and speaking flags: both describe
+    a running daemon, and both would be lies if they survived a reboot. This
+    is a tmpfs, so they cannot.
+    """
     runtime = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
-    return Path(runtime) / "tts.sock"
+    return Path(runtime)
+
+
+def socket_path() -> Path:
+    return runtime_dir() / "tts.sock"

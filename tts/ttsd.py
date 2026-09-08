@@ -25,6 +25,7 @@ See _claim_playback for the one subtle consequence.
 from __future__ import annotations
 
 import json
+import os
 import queue
 import socket
 import subprocess
@@ -38,7 +39,7 @@ import numpy as np
 
 from tts.engine import SAMPLE_RATE, Engine, KokoroEngine
 from tts.focus import is_focused
-from tts.paths import share_dir as _share_dir, socket_path
+from tts.paths import runtime_dir as _runtime_dir, share_dir as _share_dir, socket_path
 from tts.speech import clean_for_speech, prepare, split_sentences
 
 DEFAULT_CONFIG = Path.home() / ".config/tts/config.toml"
@@ -113,6 +114,13 @@ class Config:
     wpm: int = 160
     muted_flag: Path = field(default_factory=lambda: _share_dir() / "muted")
     events: dict | None = None
+    # Both of these exist for the tmux status line, which reads them with shell
+    # builtins rather than asking the daemon -- see scripts/tmux-tts-status.sh.
+    # They live in the runtime dir, not beside muted_flag in the share dir:
+    # muting is a preference and is meant to survive a restart, while "there is
+    # a daemon and it is talking" is only true of one running process.
+    speaking_flag: Path = field(default_factory=lambda: _runtime_dir() / "tts.speaking")
+    pid_file: Path = field(default_factory=lambda: _runtime_dir() / "tts.pid")
 
 
 def _as_voice(value) -> str:
@@ -190,6 +198,33 @@ def notify(title: str, body: str) -> None:
     try:
         subprocess.Popen(
             ["notify-send", "-u", "normal", "-i", "audio-speakers", "-a", title, title, body],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def poke_status_line() -> None:
+    """Tell tmux to re-run its status jobs now, rather than at the next tick.
+
+    The speaking indicator is otherwise only as fresh as status-interval, which
+    is 5s here -- longer than plenty of utterances. The icon would light up
+    after the sentence it was announcing had already finished, or never appear
+    at all. `refresh-client -S` re-executes the `#()` jobs immediately (this is
+    measured, not assumed: ~5ms, and it is a genuine re-run rather than a
+    redraw of cached output), so a transition shows up as it happens.
+
+    Spawned and forgotten, exactly like notify() and for the same reason. This
+    is called from the worker thread, and on an interruption from the accept
+    thread, which may never wait on a subprocess. No tmux, or no server, is a
+    silent no-op -- the status line is a nicety and must never be able to
+    disturb speech.
+    """
+    try:
+        subprocess.Popen(
+            ["tmux", "refresh-client", "-S"],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -311,12 +346,17 @@ class Daemon:
         focus_check=is_focused,
         player_factory=PaplayPlayer,
         notifier=notify,
+        status_poke=None,
     ) -> None:
         self.engine = engine
         self.config = config
         self._focus_check = focus_check
         self._player_factory = player_factory
         self._notify = notifier
+        # Resolved here rather than in the signature so a test can replace the
+        # module-level function and have every Daemon built afterwards pick the
+        # replacement up -- the test suite must never fork tmux.
+        self._status_poke = status_poke or poke_status_line
         self._work: queue.Queue = queue.Queue()
         self._intake: queue.Queue = queue.Queue(maxsize=INTAKE_BACKLOG)
         self._playback: _Playback | None = None
@@ -328,6 +368,13 @@ class Daemon:
         # for silence checks this before it queues any audio.
         self._stop_epoch = 0
         self._lock = threading.Lock()
+        # Guards the speaking flag file only. Separate from _lock because the
+        # write is I/O and nothing may do I/O under _lock, but read-then-write
+        # still has to be atomic against itself: a stop racing a claim would
+        # otherwise be able to write its "not speaking" first and leave the
+        # claim's "speaking" behind as the final state. Whoever reads last
+        # writes last. _lock is taken *inside* this one, never the other way.
+        self._flag_lock = threading.Lock()
         self._server: socket.socket | None = None
         self._stop_serving = threading.Event()
         self._player_broken = False
@@ -350,6 +397,47 @@ class Daemon:
                 self.config.muted_flag.unlink(missing_ok=True)
         except OSError as exc:
             _warn(f"could not update {self.config.muted_flag}: {exc}")
+
+    def _sync_speaking_flag(self) -> None:
+        """Mirror the speaking state onto disk, then nudge tmux to look.
+
+        Call this after any transition, always outside self._lock -- it takes
+        that lock itself to read the state, and taking it twice would deadlock.
+        It is idempotent by construction: it re-reads the current state rather
+        than being told what to write, so calling it when nothing changed
+        costs a stat and settles on the same answer.
+
+        Failure is swallowed like _set_muted's. A status line that has gone
+        stale is a cosmetic problem; an exception raised on the worker thread
+        mid-utterance is not.
+        """
+        with self._flag_lock:
+            with self._lock:
+                speaking = self._speaking
+            try:
+                if speaking:
+                    self.config.speaking_flag.parent.mkdir(parents=True, exist_ok=True)
+                    self.config.speaking_flag.touch()
+                else:
+                    self.config.speaking_flag.unlink(missing_ok=True)
+            except OSError as exc:
+                _warn(f"could not update {self.config.speaking_flag}: {exc}")
+        self._status_poke()  # forks: never under either lock
+
+    def _write_pid_file(self) -> None:
+        """Publish our pid so the status line can tell whether we are alive.
+
+        It cannot use the socket for that. An AF_UNIX socket file outlives the
+        process that bound it, and this daemon installs no SIGTERM handler, so
+        `systemctl stop tts.service` leaves the socket sitting on disk -- a
+        reader testing for it would call a stopped daemon "running". Rewritten
+        on every start, which is also what clears a pid left by a crash.
+        """
+        try:
+            self.config.pid_file.parent.mkdir(parents=True, exist_ok=True)
+            self.config.pid_file.write_text(f"{os.getpid()}\n")
+        except OSError as exc:
+            _warn(f"could not write {self.config.pid_file}: {exc}")
 
     def status(self) -> dict:
         with self._lock:
@@ -458,6 +546,7 @@ class Daemon:
         for victim in (playback, retiring):
             if victim is not None:
                 victim.kill()
+        self._sync_speaking_flag()
 
     def _drop_queued(self) -> None:
         while True:
@@ -511,9 +600,12 @@ class Daemon:
         with self._lock:
             if generation != self._generation:
                 return None
-            if self._playback is not None:
+            existing = self._playback
+            if existing is not None:
                 self._speaking = True
-                return self._playback
+        if existing is not None:
+            self._sync_speaking_flag()  # outside the lock: it takes it itself
+            return existing
 
         try:
             candidate = _Playback(self._player_factory(), generation)
@@ -538,6 +630,8 @@ class Daemon:
                 self._speaking = True
         if loser is not None:
             loser.kill()
+        if result is not None:
+            self._sync_speaking_flag()
         return result
 
     def _discard_playback(self, generation: int) -> None:
@@ -549,6 +643,7 @@ class Daemon:
             self._playback = None
             self._speaking = False
         playback.kill()
+        self._sync_speaking_flag()
 
     def _retire_playback(self) -> None:
         """Let the current player finish its audio and exit, then forget it.
@@ -571,8 +666,11 @@ class Daemon:
             playback, self._playback = self._playback, None
             if playback is None:
                 self._speaking = False
-                return
-            self._retiring = playback
+            else:
+                self._retiring = playback
+        if playback is None:
+            self._sync_speaking_flag()
+            return
         try:
             playback.retire()
         finally:
@@ -580,6 +678,10 @@ class Daemon:
                 if self._retiring is playback:
                     self._retiring = None
                     self._speaking = False
+            # After the drain, not before: the flag is meant to mean "audio is
+            # coming out of the speakers", and retire() is precisely the wait
+            # for that to stop being true.
+            self._sync_speaking_flag()
 
     def _speak_one(self, generation: int, sentence: str) -> None:
         with self._lock:
@@ -617,6 +719,7 @@ class Daemon:
             self._speak_one_safely(*item)
         with self._lock:
             self._speaking = False
+        self._sync_speaking_flag()
 
     def run_intake(self) -> None:
         """Turn accepted messages into queued speech, off the accept loop.
@@ -667,6 +770,13 @@ class Daemon:
     def serve(self, path: Path) -> None:
         server = self._bind(path)
         self._server = server
+        self._write_pid_file()
+        # Self-healing, and the only cleanup that can be relied on. _speaking is
+        # False here, so this clears a flag left behind by a daemon that was
+        # killed mid-utterance -- the finally below cannot be trusted to have
+        # run, since SIGTERM (what `systemctl stop` sends) is unhandled and
+        # terminates the process outright.
+        self._sync_speaking_flag()
         worker = threading.Thread(target=self.run_worker, daemon=True)
         worker.start()
         intake = threading.Thread(target=self.run_intake, daemon=True)
@@ -691,10 +801,11 @@ class Daemon:
             self._work.put(_STOP)
             server.close()
             self._server = None
-            try:
-                path.unlink(missing_ok=True)
-            except OSError:
-                pass
+            for leftover in (path, self.config.speaking_flag, self.config.pid_file):
+                try:
+                    leftover.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     def _serve_connection(self, conn: socket.socket) -> None:
         """Read newline-delimited JSON from one client.
