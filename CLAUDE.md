@@ -190,11 +190,12 @@ Control it with `tts stop` (aliased `shh`), `tts toggle` (aliased `tts-off`), `t
 status`, or the tmux bindings `prefix + S` (stop) and `prefix + T` (toggle).
 
 The tmux status line shows the state as a single Material Design Nerd Font glyph
-via `scripts/tmux-tts-status.sh`: `󰕾` idle (grey) or speaking (gold), `󰖁` muted
-(grey), `󰀦` no daemon (gold). Grey is a resting state, gold means something wants
-noticing. It always draws exactly one glyph, and sits at the left of
-`status-right` — that block is right-aligned, so a variable-width segment there
-would drag the load figures sideways on every state change.
+via `scripts/tmux-tts-status.sh`: `󰕾` idle (grey) or speaking (gold), `󰀦` no
+daemon (gold), and **nothing at all when muted** — an idle daemon always draws a
+glyph, so an empty slot is itself the mute indicator. Grey is a resting state,
+gold means something wants noticing. The segment sits at the left of
+`status-right`, which is what makes its changing width safe: that block is
+right-aligned, so the load figures stay anchored and never move.
 
 Gotchas worth knowing before changing any of this:
 - **`tts/paths.py` is a stdlib-only leaf module.** It holds `socket_path()` and

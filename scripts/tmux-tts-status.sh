@@ -19,14 +19,18 @@
 # being wrong is a missing icon, so it is not worth a cmdline check that would
 # instead break silently if the unit's ExecStart ever changed.)
 #
-# Always prints exactly one glyph, so the segment is a fixed two columns wide and
-# nothing to its right ever shifts. It sits at the *left* of status-right for the
-# same reason: status-right is right-aligned, so a segment that changed width
-# there would drag the load figures sideways every time the state changed.
+# Muted prints nothing at all. There is no icon for it because the absence *is*
+# the icon: an idle daemon always draws a glyph, so a bar with nothing there is
+# a muted one, and a symbol saying "you turned this off" is just clutter on the
+# state you chose deliberately.
 #
-# Idle and speaking share the volume_high glyph and differ only in colour: grey
-# is a resting state (idle, muted), gold means something wants noticing (audio
-# playing right now, or no daemon at all).
+# Everything else prints exactly one glyph. Idle and speaking share the
+# volume_high glyph and differ only in colour: grey is resting, gold means
+# something wants noticing (audio playing right now, or no daemon at all).
+#
+# The segment sits at the *left* of status-right, which is what makes a variable
+# width safe: that block is right-aligned, so its rightmost content stays
+# anchored and the load figures never move when this appears or disappears.
 
 runtime_dir=${XDG_RUNTIME_DIR:-/run/user/$UID}
 data_dir=${XDG_DATA_HOME:-$HOME/.local/share}/tts
@@ -38,7 +42,6 @@ data_dir=${XDG_DATA_HOME:-$HOME/.local/share}/tts
 # a *wrong* glyph, which is worse than an obviously missing one. All three are
 # single-width, so the column budget in tmux.conf still holds.
 GLYPH_VOLUME=$'\U000F057E'  # md-volume_high -- ready to speak, or speaking now
-GLYPH_MUTED=$'\U000F0581'   # md-volume_off  -- silenced by the user
 GLYPH_DOWN=$'\U000F0026'    # md-alert       -- no daemon, so nothing narrates
 GOLD='#[fg=#D4AF37]'        # brand accent: a state worth noticing
 DIM='#[fg=colour245]'       # the same grey as the load/mem segment
@@ -52,7 +55,7 @@ fi
 if [[ -z $alive ]]; then
   printf '%s%s' "$GOLD" "$GLYPH_DOWN"
 elif [[ -e $data_dir/muted ]]; then
-  printf '%s%s' "$DIM" "$GLYPH_MUTED"
+  :  # muted: draw nothing, see above
 elif [[ -e $runtime_dir/tts.speaking ]]; then
   printf '%s%s' "$GOLD" "$GLYPH_VOLUME"
 else
