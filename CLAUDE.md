@@ -241,6 +241,13 @@ Gotchas worth knowing before changing any of this:
   narrates; everything else falls back to `notify-send`. Sessions with no
   `$TMUX_PANE` at all — the desktop app, editor integrations — are treated as
   focused and always speak.
+- **The unit sets `PATH` because tmux lives in `~/.local/bin`.** A systemd user
+  service does not get the login shell's PATH, and the source-built tmux is not in
+  `/usr/bin`. Without `Environment=PATH=` in `tts/tts.service`, `focus.py`'s
+  `tmux display-message` fails with not-found, the error is swallowed, and every
+  tmux pane counts as unfocused: hooks only ever send notifications, and
+  `poke_status_line()` fails silently too. Only panes outside tmux still spoke, so
+  it looked like a focus problem.
 - **Terminal window focus is not checked.** Wayland has no reliable unprivileged
   query for it, so alt-tabbing to a browser does not stop narration. This is
   deliberate.

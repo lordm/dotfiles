@@ -7,6 +7,9 @@ PartOf=graphical-session.target
 Type=simple
 ExecStart=%h/.local/share/tts/venv/bin/python -m tts.ttsd
 Environment=PYTHONPATH=%h/workspace/dotfiles
+# tmux is a source build in ~/.local/bin, which a user unit's PATH lacks;
+# without it the focus check fails and every tmux pane counts as unfocused.
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 Restart=on-failure
 RestartSec=2
 
