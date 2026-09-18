@@ -306,6 +306,61 @@ Gotchas worth knowing before changing any of this:
   install, which is how `tts/tests/test_setup_hooks.py` exercises them against a
   scratch `HOME`.
 
+### Audio (Scarlett Solo 4th Gen, WirePlumber, ACP)
+
+The guitar rig (REAPER + Neural DSP via wine/yabridge — see `NEURAL_DSP_LINUX_GUIDE.md`)
+runs on a Focusrite Scarlett Solo 4th Gen. Two files tune it, both symlinked by
+`install.sh`: `pipewire/pipewire.conf.d/99-low-latency.conf` (48kHz, quantum 512) and
+`wireplumber/main.lua.d/51-scarlett-low-latency.lua` (per-node ALSA properties).
+
+The card is pinned to ACP's `pro-audio` profile, which maps straight to raw `hw:2,0`.
+
+Gotchas worth knowing before changing any of this:
+- **`alsa_monitor.rules` must be extended with `table.insert`, never assigned.** This
+  file loads *after* `/usr/share/wireplumber/main.lua.d/50-alsa-config.lua`, so a plain
+  `alsa_monitor.rules = {...}` replaces the shipped defaults instead of adding to them,
+  silently discarding `api.alsa.use-acp`, `api.acp.auto-profile` and `api.acp.auto-port`
+  **for every card on the machine**. That was the real bug behind a pile of unrelated-
+  looking symptoms: no ports anywhere, so no jack sensing; the built-in ALC257's
+  headphone amp stuck muted with no port to select it (kernel auto-mute is also
+  disabled, in `/var/lib/alsa/asound.state`); all four NVIDIA HDMI PCMs exposed as
+  sinks with no availability tracking, three of them dead. Tells that ACP is off:
+  every card shows only `off`/`on` profiles, and every node reports
+  `audio.channels = 64` (`alsa.lua:63` sets that *only* when `use-acp ~= "true"`).
+- **`pro-audio` is priority 1 — the lowest — so it is never auto-selected.** It lives in
+  `~/.local/state/wireplumber/default-profile`, which is machine state, not in this repo.
+  Restore ACP without pinning it and you land on `output:analog-stereo+input:analog-surround-40`
+  (priority 6512), which pushes audio through the `surround40:` plug layer and relabels
+  the card's four capture channels FL/FR/RL/RR. `pro-audio` is not defined in any config
+  file — it is compiled into `libspa-alsa.so` and synthesized for every non-UCM card.
+- **The 4 capture channels are real**, not a misdetection: 1-2 are the physical inputs,
+  3-4 are loopback returns. ACP's only 4-channel input mapping happens to be surround.
+- **GNOME's "Digital Output (S/PDIF)" entry for this card is a phantom.** The Solo has one
+  PCM device, 2 playback channels and no IEC958 mixer controls at all. `default.conf` sets
+  `auto-profiles = yes`, so ACP generated the combination speculatively (`available: unknown`).
+  Selecting it produces silence.
+- **`session.suspend-timeout-seconds = 0` costs ~3.9% of a core, forever.** At 0 the node
+  never suspends, so the interface streams isochronous URBs for silence: ~2210 IRQ/s on the
+  shared xhci controller versus ~35/s suspended. Stock default is 5s; this repo uses 60 so it
+  never fires between takes. It cannot fire mid-session — a node leaves `idle` the moment a
+  stream links to it, and `suspend-node.lua` destroys the timer on every state change.
+- **PCM-open-time properties are invisible while the device sleeps.** `headroom`,
+  `period-size` and `period-num` do not appear in `wpctl inspect` until the PCM opens.
+  Wake the device first or you will think the tuning broke.
+- **Node names carry the profile as a suffix** (`...pro-output-0`, `...analog-stereo`). The
+  `node.name` globs here match `Scarlett` in the *middle* segment, so they survive profile
+  changes — but `~/.local/state/wireplumber/default-nodes` stores full names, so switching
+  profiles can silently drop the default sink to Built-in.
+- **Editing a saved route needs wireplumber stopped**, or it overwrites you on exit.
+  `default-routes` had the headphone route at `mute=true` with `channelVolumes=8.47e-10`
+  (≈ -181 dB), which would have re-broken headphones on plug-in even after ACP came back.
+- **REAPER bypasses all of this.** `reaper.ini` uses `alsa_outdev=hw:Gen` with
+  `linux_auto_pasuspend=1`, taking the device exclusively at the kernel level. WirePlumber
+  naming and profile changes cannot break it.
+- **`Enabling the use of ACP` is logged at info level**, which the default log level hides.
+  `WIREPLUMBER_DEBUG=4` is needed to see it; otherwise check `api.alsa.use-acp` on the
+  device, or the absence of `audio.channels = 64`.
+
 ## Path Variables
 Key paths added in zshrc:
 - CUDA Toolkit: `/usr/local/cuda/bin`
